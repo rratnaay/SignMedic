@@ -52,6 +52,8 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
   const [modelStatus, setModelStatus] = useState<ModelStatus>('loading');
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const facingModeRef = useRef(facingMode);
+  facingModeRef.current = facingMode;
   const [isVocabOpen, setIsVocabOpen] = useState<boolean>(true);
 
   // Recognition state
@@ -388,8 +390,10 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                   runSegmentInference(segment);
                 }
 
-                // Draw skeleton overlay
-                // Mirror coordinates horizontally: (1 - x) * width
+                // Draw skeleton overlay (mirrored horizontally only for front camera)
+                const isMirrored = facingModeRef.current === 'user';
+                const mapX = (normX: number) => (isMirrored ? (1 - normX) : normX) * width;
+
                 for (const hand of detections.landmarks) {
                   // Draw connecting lines (cyan-blue #3D9FD5)
                   ctx.strokeStyle = '#3D9FD5';
@@ -402,8 +406,8 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                     const pEnd = hand[endIdx];
                     if (pStart && pEnd) {
                       ctx.beginPath();
-                      ctx.moveTo((1 - pStart.x) * width, pStart.y * height);
-                      ctx.lineTo((1 - pEnd.x) * width, pEnd.y * height);
+                      ctx.moveTo(mapX(pStart.x), pStart.y * height);
+                      ctx.lineTo(mapX(pEnd.x), pEnd.y * height);
                       ctx.stroke();
                     }
                   }
@@ -412,7 +416,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                   ctx.fillStyle = '#FFFFFF';
                   for (const point of hand) {
                     ctx.beginPath();
-                    ctx.arc((1 - point.x) * width, point.y * height, 3.5, 0, 2 * Math.PI);
+                    ctx.arc(mapX(point.x), point.y * height, 3.5, 0, 2 * Math.PI);
                     ctx.fill();
                   }
                 }
@@ -489,13 +493,15 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         aria-label="Area Pengenalan Gestur Kamera"
         className="relative aspect-[3/4] sm:aspect-[16/10] w-full overflow-hidden rounded-panel border border-edge bg-[#142C58] shadow-sm flex flex-col items-center justify-center text-white"
       >
-        {/* Persistent Mirrored Webcam Stream */}
+        {/* Persistent Webcam Stream (Mirrored only for front/selfie camera) */}
         <video
           ref={setVideoRef}
           autoPlay
           playsInline
           muted
-          className={`absolute inset-0 h-full w-full object-cover scale-x-[-1] transition-opacity duration-200 ${
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            facingMode === 'user' ? 'scale-x-[-1]' : 'scale-x-1'
+          } ${
             cameraStatus === 'active' ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none -z-10'
           }`}
         />
