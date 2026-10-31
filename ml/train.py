@@ -40,6 +40,15 @@ REJECT_CLASS_INDEX = 6
 REJECT_CLASS_NAME = "_OTHER_"
 
 
+def horizontal_flip(X):
+    """Mirror features (x -> -x). Works on (T, 129) or (N, T, 129).
+    hand_0/hand_1 are wrist-centered, so negating every x component (indices 0::3,
+    covering both hands and delta_wrist.x) turns a right hand into a left hand."""
+    X_f = np.array(X, dtype=np.float32, copy=True)
+    X_f[..., 0::3] *= -1.0
+    return X_f
+
+
 def rotate_2d_sequence(X_seq, angle_deg):
     theta = np.radians(angle_deg)
     cos_t, sin_t = np.cos(theta), np.sin(theta)
@@ -81,26 +90,31 @@ def scale_jitter_sequence(X_seq, min_s=0.90, max_s=1.10):
 
 
 def augment_training_data(X_train, y_train, multiplier=4):
+    """Each clip yields `multiplier` samples for the original view plus `multiplier`
+    for its horizontal flip (2 * multiplier total, 50:50 right/left). Within each
+    view, the first sample is unmodified and the rest get rotation/time-warp/
+    jitter/scale augmentation."""
+    per_view = max(1, multiplier)
     augmented_X = []
     augmented_y = []
     
     for i in range(len(X_train)):
-        sample = X_train[i]
         label = y_train[i]
-        augmented_X.append(sample)
-        augmented_y.append(label)
-        
-        for _ in range(multiplier - 1):
-            angle = np.random.uniform(-15.0, 15.0)
-            factor = np.random.uniform(0.85, 1.15)
-            s_aug = scale_jitter_sequence(
-                gaussian_jitter_sequence(
-                    time_warp_sequence(rotate_2d_sequence(sample, angle), factor),
-                    std=0.008
-                )
-            )
-            augmented_X.append(s_aug)
+        for view in (X_train[i], horizontal_flip(X_train[i])):
+            augmented_X.append(view)
             augmented_y.append(label)
+            
+            for _ in range(per_view - 1):
+                angle = np.random.uniform(-15.0, 15.0)
+                factor = np.random.uniform(0.85, 1.15)
+                s_aug = scale_jitter_sequence(
+                    gaussian_jitter_sequence(
+                        time_warp_sequence(rotate_2d_sequence(view, angle), factor),
+                        std=0.008
+                    )
+                )
+                augmented_X.append(s_aug)
+                augmented_y.append(label)
             
     return np.array(augmented_X, dtype=np.float32), np.array(augmented_y, dtype=np.int64)
 
@@ -129,6 +143,23 @@ def build_7class_model(input_shape=(TARGET_T, FEATURE_DIM), num_classes=NUM_CLAS
         metrics=["accuracy"]
     )
     return model
+
+
+def build_invariant_model(base_model):
+    """Wrap a trained base network with in-graph flip averaging:
+    p = mean(base(x), base(flip(x))). The flip is a frozen diagonal Dense layer
+    (-1 on every x component, +1 elsewhere), so the exported TF.js model is exactly
+    left/right-hand invariant without extra client-side logic."""
+    inputs = layers.Input(shape=(TARGET_T, FEATURE_DIM), name="landmarks_input")
+    sign = np.ones(FEATURE_DIM, dtype=np.float32)
+    sign[0::3] = -1.0
+    flip_layer = layers.Dense(FEATURE_DIM, use_bias=False, trainable=False, name="mirror_flip")
+    flipped = flip_layer(inputs)
+    flip_layer.set_weights([np.diag(sign)])
+    p_orig = base_model(inputs)
+    p_flip = base_model(flipped)
+    outputs = layers.Average(name="tta_prediction")([p_orig, p_flip])
+    return keras.Model(inputs=inputs, outputs=outputs, name="signmedic_7class_mirror_invariant")
 
 
 def plot_confusion_matrix(cm, class_names, output_path):
@@ -189,6 +220,12 @@ def main():
     all_ood_preds = []
     ood_signer_results = {}
     
+    all_y_true_flip = []
+    all_y_pred_flip = []
+    all_ood_probs_flip = []
+    all_ood_preds_flip = []
+    mirror_per_signer = {}
+    
     for fold_idx, test_signer in enumerate(unique_signers):
         remaining = [s for s in unique_signers if s != test_signer]
         val_signer = remaining[0]
@@ -245,6 +282,7 @@ def main():
             verbose=0,
             shuffle=True
         )
+        model = build_invariant_model(model)
         
         # 1. Evaluate on in-class test clips of Signer X
         probs_in = model.predict(X_test_in, verbose=0)
@@ -297,6 +335,27 @@ def main():
         all_ood_probs.extend(probs_ood)
         all_ood_preds.extend(preds_ood)
         
+        # 3. Mirror test: horizontally flipped test clips (left-handed / mirrored camera)
+        probs_in_f = model.predict(horizontal_flip(X_test_in), verbose=0)
+        preds_in_f = np.argmax(probs_in_f, axis=1)
+        correct_f = int(np.sum(preds_in_f == y_test_in))
+        probs_ood_f = model.predict(horizontal_flip(X_test_ood), verbose=0)
+        preds_ood_f = np.argmax(probs_ood_f, axis=1)
+        rej_f = int(np.sum((preds_ood_f == REJECT_CLASS_INDEX) | (np.max(probs_ood_f[:, :6], axis=1) < 0.85)))
+        print(f"Mirrored In-Class: {correct_f}/{total_in} correct ({correct_f / total_in * 100:.2f}%) | "
+              f"Mirrored OOD Rejection: {rej_f}/{total_ood_signer}")
+        mirror_per_signer[f"signer_{test_signer}"] = {
+            "original": f"{correct_in}/{total_in}",
+            "original_accuracy": acc_in,
+            "mirrored": f"{correct_f}/{total_in}",
+            "mirrored_accuracy": float(correct_f / total_in),
+            "mirrored_ood_rejected": f"{rej_f}/{total_ood_signer}"
+        }
+        all_y_true_flip.extend(y_test_in)
+        all_y_pred_flip.extend(preds_in_f)
+        all_ood_probs_flip.extend(probs_ood_f)
+        all_ood_preds_flip.extend(preds_ood_f)
+        
     all_y_true_in = np.array(all_y_true_in)
     all_y_pred_in = np.array(all_y_pred_in)
     all_probs_in = np.array(all_probs_in)
@@ -311,6 +370,16 @@ def main():
     
     print("\n" + "=" * 70)
     print(f"CLEAN 7-CLASS LOSO OVERALL IN-CLASS ACCURACY: {total_correct}/{total_test_clips} ({overall_acc * 100:.2f}%)")
+    
+    all_y_true_flip = np.array(all_y_true_flip)
+    all_y_pred_flip = np.array(all_y_pred_flip)
+    flip_correct = int(np.sum(all_y_true_flip == all_y_pred_flip))
+    flip_acc = float(flip_correct / len(all_y_true_flip))
+    all_ood_probs_flip = np.array(all_ood_probs_flip)
+    all_ood_preds_flip = np.array(all_ood_preds_flip)
+    flip_ood_rej_mask = (all_ood_preds_flip == REJECT_CLASS_INDEX) | (np.max(all_ood_probs_flip[:, :6], axis=1) < 0.85)
+    print(f"MIRRORED (LEFT-HAND) IN-CLASS ACCURACY      : {flip_correct}/{len(all_y_true_flip)} ({flip_acc * 100:.2f}%)")
+    print(f"MIRRORED OOD REJECTION @0.85                : {int(np.sum(flip_ood_rej_mask))}/{len(flip_ood_rej_mask)}")
     print("=" * 70)
     
     precision, recall, f1, support = precision_recall_fscore_support(
@@ -348,6 +417,7 @@ def main():
         verbose=0,
         shuffle=True
     )
+    final_model = build_invariant_model(final_model)
     final_model_path = os.path.join(os.path.dirname(__file__), "final_model.h5")
     final_model.save(final_model_path)
     print(f"Saved final 7-class model to: {final_model_path}")
@@ -443,6 +513,27 @@ def main():
             "ratio": f"{total_correct}/{total_test_clips}"
         },
         "per_signer_in_class_results": per_signer_results,
+        "mirror_handedness_evaluation": {
+            "description": "Clean Nested LOSO test clips evaluated as-is (Original) vs horizontally flipped x -> -x (Mirrored: left-handed signer / mirrored camera). Training uses 50% original + 50% flipped samples.",
+            "original": {
+                "correct_clips": total_correct,
+                "total_clips": total_test_clips,
+                "accuracy": overall_acc,
+                "ratio": f"{total_correct}/{total_test_clips}"
+            },
+            "mirrored": {
+                "correct_clips": flip_correct,
+                "total_clips": int(len(all_y_true_flip)),
+                "accuracy": flip_acc,
+                "ratio": f"{flip_correct}/{len(all_y_true_flip)}"
+            },
+            "mirrored_ood_rejection_at_0_85": {
+                "rejected_clips": int(np.sum(flip_ood_rej_mask)),
+                "total_ood_clips": int(len(flip_ood_rej_mask)),
+                "rejection_rate": float(np.mean(flip_ood_rej_mask))
+            },
+            "per_signer": mirror_per_signer
+        },
         "per_signer_ood_rejection_results": ood_signer_results,
         "per_class_metrics": class_metrics,
         "threshold_sweep_0_50_to_0_95": threshold_sweep,
