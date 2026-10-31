@@ -14,6 +14,16 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Auto-close modal when patient connects successfully
+  useEffect(() => {
+    if (peerConnected && role === 'nurse') {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [peerConnected, role, onClose]);
+
   // Generate QR Code data URL when roomCode is active in nurse role
   useEffect(() => {
     if (roomCode && role === 'nurse' && typeof window !== 'undefined') {
@@ -138,6 +148,12 @@ export const PairingModal: React.FC<PairingModalProps> = ({ isOpen, onClose }) =
                 </>
               )}
             </div>
+
+            {peerConnected && (
+              <p className="text-center text-xs font-bold text-ok-text animate-pulse">
+                HP Pasien berhasil terhubung. Membuka Layar Petugas...
+              </p>
+            )}
 
             {/* Actions */}
             <div className="flex w-full flex-col gap-2 pt-2 border-t border-line/60 sm:flex-row">

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useState, useCallback } from 'react';
+import { Peer, type DataConnection } from 'peerjs';
 import { TriageState, TriageAction } from '../types';
 import { initialTriageState, triageReducer } from './triageReducer';
 
@@ -48,6 +49,10 @@ export const TriageProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const peerRef = useRef<Peer | null>(null);
+  const connsRef = useRef<Set<DataConnection>>(new Set());
+  const stateRef = useRef<TriageState>(state);
+  stateRef.current = state;
   const isReceivingBroadcastRef = useRef<boolean>(false);
 
   // 1. Manage BroadcastChannel (for local tab sync)
@@ -75,60 +80,164 @@ export const TriageProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [roomCode]);
 
-  // 2. Manage WebSocket Relay (for cross-device real-time sync)
+  // 2. Manage WebRTC P2P Sync (Direct DataChannel between Laptop and Phone)
   useEffect(() => {
-    if (!roomCode || typeof window === 'undefined' || !('WebSocket' in window)) {
+    if (!roomCode || role === 'standalone') {
+      setPeerConnected(false);
       return;
     }
 
-    let isClosed = false;
-    let ws: WebSocket | null = null;
+    if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined') {
+      return;
+    }
 
-    try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws-sync`;
-      ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    let isDisposed = false;
+    const currentConns = connsRef.current;
 
-      ws.onopen = () => {
-        if (isClosed) return;
-        ws?.send(JSON.stringify({ type: 'JOIN_ROOM', roomId: roomCode, role }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'PEER_CONNECTED') {
-            setPeerConnected(true);
-          } else if (msg.type === 'PEER_DISCONNECTED') {
-            setPeerConnected(false);
-          } else if (msg.type === 'SYNC_STATE' && msg.payload) {
-            isReceivingBroadcastRef.current = true;
-            dispatch({ type: 'SYNC_STATE', payload: msg.payload });
-            setTimeout(() => {
-              isReceivingBroadcastRef.current = false;
-            }, 50);
-          }
-        } catch {
-          // ignore malformed message
+    const setupConnection = (conn: DataConnection) => {
+      conn.on('open', () => {
+        if (isDisposed) {
+          conn.close();
+          return;
         }
-      };
+        currentConns.add(conn);
+        setPeerConnected(true);
 
-      ws.onclose = () => {
-        if (!isClosed) {
+        // Host immediately syncs current triage state to newly connected client
+        if (role === 'nurse') {
+          conn.send({ type: 'SYNC_STATE', payload: stateRef.current });
+        }
+      });
+
+      conn.on('data', (rawData: unknown) => {
+        const msg = rawData as { type?: string; payload?: TriageState };
+        if (msg && msg.type === 'SYNC_STATE' && msg.payload) {
+          isReceivingBroadcastRef.current = true;
+          dispatch({ type: 'SYNC_STATE', payload: msg.payload });
+          setTimeout(() => {
+            isReceivingBroadcastRef.current = false;
+          }, 50);
+        }
+      });
+
+      conn.on('close', () => {
+        currentConns.delete(conn);
+        if (currentConns.size === 0) {
           setPeerConnected(false);
         }
-      };
-    } catch {
-      // WebSocket connection failed or not supported in this host
+      });
+
+      conn.on('error', () => {
+        currentConns.delete(conn);
+        if (currentConns.size === 0) {
+          setPeerConnected(false);
+        }
+      });
+    };
+
+    try {
+      if (role === 'nurse') {
+        // Nurse acts as host peer with deterministic room ID
+        const hostPeerId = `signmedic-room-${roomCode}`;
+        const peer = new Peer(hostPeerId, { debug: 0 });
+        peerRef.current = peer;
+
+        peer.on('connection', (conn) => {
+          setupConnection(conn);
+        });
+
+        peer.on('error', (err) => {
+          console.warn('[SignMedic P2P Host] WebRTC notice:', err.type || err);
+        });
+      } else if (role === 'patient') {
+        // Patient acts as client peer and connects to host room
+        const hostPeerId = `signmedic-room-${roomCode}`;
+        const peer = new Peer({ debug: 0 });
+        peerRef.current = peer;
+
+        peer.on('open', () => {
+          if (isDisposed) return;
+          const conn = peer.connect(hostPeerId, { reliable: true });
+          setupConnection(conn);
+        });
+
+        peer.on('error', (err) => {
+          console.warn('[SignMedic P2P Client] WebRTC notice:', err.type || err);
+        });
+      }
+    } catch (e) {
+      console.warn('[SignMedic P2P] Could not initialize WebRTC Peer:', e);
+    }
+
+    // Secondary fallback: Local dev WebSocket server (if present)
+    let ws: WebSocket | null = null;
+    if ('WebSocket' in window) {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws-sync`;
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          if (isDisposed) return;
+          ws?.send(JSON.stringify({ type: 'JOIN_ROOM', roomId: roomCode, role }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'PEER_CONNECTED') {
+              setPeerConnected(true);
+            } else if (msg.type === 'PEER_DISCONNECTED') {
+              if (currentConns.size === 0) {
+                setPeerConnected(false);
+              }
+            } else if (msg.type === 'SYNC_STATE' && msg.payload) {
+              isReceivingBroadcastRef.current = true;
+              dispatch({ type: 'SYNC_STATE', payload: msg.payload });
+              setTimeout(() => {
+                isReceivingBroadcastRef.current = false;
+              }, 50);
+            }
+          } catch {
+            // ignore malformed message
+          }
+        };
+      } catch {
+        // ignored
+      }
     }
 
     return () => {
-      isClosed = true;
-      if (ws) {
-        ws.close();
+      isDisposed = true;
+      currentConns.forEach((conn) => {
+        try {
+          conn.close();
+        } catch {
+          // ignore
+        }
+      });
+      currentConns.clear();
+
+      if (peerRef.current) {
+        try {
+          peerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        peerRef.current = null;
       }
-      wsRef.current = null;
+
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+        wsRef.current = null;
+      }
+
+      setPeerConnected(false);
     };
   }, [roomCode, role]);
 
@@ -136,7 +245,7 @@ export const TriageProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (isReceivingBroadcastRef.current) return;
     
-    // Local BroadcastChannel sync
+    // Local BroadcastChannel sync (same browser tabs)
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({
         type: 'SYNC_STATE',
@@ -144,7 +253,21 @@ export const TriageProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     }
 
-    // Cross-device WebSocket sync
+    // WebRTC P2P DataChannel sync (Direct Laptop <-> Phone)
+    connsRef.current.forEach((conn) => {
+      if (conn.open) {
+        try {
+          conn.send({
+            type: 'SYNC_STATE',
+            payload: state,
+          });
+        } catch {
+          // ignore send error
+        }
+      }
+    });
+
+    // Local dev WebSocket relay sync
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && roomCode) {
       wsRef.current.send(
         JSON.stringify({
