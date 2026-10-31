@@ -180,7 +180,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
-          height: { ideal: 400 },
+          height: { ideal: 480 },
           facingMode: targetFacing,
         },
         audio: false,
@@ -200,7 +200,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           const fallbackStream = await navigator.mediaDevices.getUserMedia({
             video: {
               width: { ideal: 640 },
-              height: { ideal: 400 },
+              height: { ideal: 480 },
               facingMode: 'user',
             },
             audio: false,
@@ -484,10 +484,10 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 1. Camera Panel Frame (16:10 aspect ratio, dark background #142C58) */}
+      {/* 1. Camera Panel Frame (Responsive: 3:4 portrait on mobile, 16:10 on desktop) */}
       <section
         aria-label="Area Pengenalan Gestur Kamera"
-        className="relative aspect-[16/10] w-full overflow-hidden rounded-panel border border-edge bg-[#142C58] shadow-sm flex flex-col items-center justify-center text-white"
+        className="relative aspect-[3/4] sm:aspect-[16/10] w-full overflow-hidden rounded-panel border border-edge bg-[#142C58] shadow-sm flex flex-col items-center justify-center text-white"
       >
         {/* Persistent Mirrored Webcam Stream */}
         <video
@@ -503,7 +503,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         {/* Persistent Skeleton Canvas Overlay */}
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 h-full w-full pointer-events-none transition-opacity duration-200 ${
+          className={`absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-200 ${
             cameraStatus === 'active' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'
           }`}
         />
