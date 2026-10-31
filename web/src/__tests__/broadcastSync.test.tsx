@@ -10,7 +10,8 @@ describe('BroadcastChannel Tab Synchronization', () => {
     // Tab 2 (e.g. Nurse's monitor/tab)
     const tab2 = render(<App />);
 
-    // In Tab 1, select a symptom
+    // In Tab 1, switch to Papan Visual and select a symptom
+    fireEvent.click(tab1.getAllByRole('tab', { name: /Papan Visual/i })[0]);
     const tab1PainButton = tab1.getAllByRole('button', { name: /Sakit \/ Nyeri/i })[0];
     fireEvent.click(tab1PainButton);
 

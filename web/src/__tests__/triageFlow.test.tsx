@@ -19,6 +19,14 @@ describe('Triage Communication Full Flow (Without Camera / Mic)', () => {
   it('completes the full triage communication flow between patient and nurse', () => {
     render(<App />);
 
+    // Default tab is Gestur Kamera; switch to Papan Visual to test visual board selection
+    const visualBoardTab = screen.getByRole('tab', { name: /Papan Visual/i });
+    expect(screen.getByRole('tab', { name: /Gestur Kamera/i })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    fireEvent.click(visualBoardTab);
+
     // 1. Initial State: Symptom summary is empty
     expect(
       screen.getByText(/Belum ada pilihan\. Pilih pada papan gambar\./i)
@@ -73,7 +81,8 @@ describe('Triage Communication Full Flow (Without Camera / Mic)', () => {
     });
     fireEvent.click(questionButton);
 
-    // 10. Question appears in Patient view's "Pesan dari Petugas" (and on the quick question button)
+    // 10. Question appears in Patient view's top notification banner (and on the quick question button)
+    expect(screen.getByText(/Pesan Baru dari Petugas Triase/i)).toBeInTheDocument();
     const questionTexts = screen.getAllByText('Bagian tubuh mana yang terasa sakit?');
     expect(questionTexts.length).toBe(2);
 
@@ -87,8 +96,13 @@ describe('Triage Communication Full Flow (Without Camera / Mic)', () => {
     const sendButton = screen.getByRole('button', { name: /^Kirim Pesan$/i });
     fireEvent.click(sendButton);
 
-    // Message appears in Patient view
+    // Message appears in Patient view's top notification banner
     expect(screen.getByText('Silakan duduk di kursi nomor 3.')).toBeInTheDocument();
+
+    // Dismiss top notification and open chat history via header icon button
+    fireEvent.click(screen.getByRole('button', { name: /Tutup notifikasi pesan petugas/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pesan dari Petugas \(2 pesan\)/i }));
+    expect(screen.getByText(/Riwayat Pesan dari Petugas \(2\)/i)).toBeInTheDocument();
 
     // 12. Patient removes an item using delete chip "×"
     const removeButtons = screen.getAllByLabelText(/Hapus Sakit \/ Nyeri/i);
@@ -111,33 +125,27 @@ describe('Triage Communication Full Flow (Without Camera / Mic)', () => {
       screen.getByText(/Belum ada pilihan\. Pilih pada papan gambar\./i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Belum ada pesan dari petugas\./i)
+      screen.getByRole('button', { name: /Pesan dari Petugas \(0 pesan\)/i })
     ).toBeInTheDocument();
   });
 
-  it('allows mobile segment control to switch between patient and nurse view', () => {
+  it('always renders side-by-side mode (Mode Berdampingan) and defaults PatientView to Gestur Kamera', () => {
     render(<App />);
 
-    const patientTab = screen.getByRole('button', { name: 'Layar Pasien' });
-    const nurseTab = screen.getByRole('button', { name: 'Layar Petugas' });
-
-    expect(patientTab).toHaveAttribute('aria-current', 'page');
-    expect(nurseTab).not.toHaveAttribute('aria-current');
-
-    // Switch to Nurse view
-    fireEvent.click(nurseTab);
-    expect(nurseTab).toHaveAttribute('aria-current', 'page');
-    expect(patientTab).not.toHaveAttribute('aria-current');
-
-    // Switch back to Patient view
-    fireEvent.click(patientTab);
-    expect(patientTab).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('Mode Berdampingan')).toBeInTheDocument();
+    expect(screen.getByText('Layar Pasien')).toBeInTheDocument();
+    expect(screen.getByText('Layar Petugas')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Gestur Kamera/i })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
   });
 
   it('allows editing summary to revert confirmed status back to unconfirmed', () => {
     render(<App />);
 
-    // Select symptom
+    // Switch to Papan Visual to select symptom
+    fireEvent.click(screen.getByRole('tab', { name: /Papan Visual/i }));
     const nauseaButton = screen.getByRole('button', { name: /Mual \/ Ingin Muntah/i });
     fireEvent.click(nauseaButton);
 

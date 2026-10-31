@@ -1,14 +1,7 @@
 import React from 'react';
-import { ShieldAlert, Activity, Columns, User, Stethoscope } from 'lucide-react';
+import { ShieldAlert, Activity, Columns } from 'lucide-react';
 
-export type ViewMode = 'split' | 'patient' | 'nurse';
-
-interface HeaderProps {
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
-}
-
-export const Header: React.FC<HeaderProps> = ({ viewMode, setViewMode }) => {
+export const Header: React.FC = () => {
   return (
     <header className="w-full border-b border-line bg-surface shadow-sm sticky top-0 z-20">
       {/* Top Clinical Navigation Bar */}
@@ -30,60 +23,20 @@ export const Header: React.FC<HeaderProps> = ({ viewMode, setViewMode }) => {
           </div>
         </div>
 
-        {/* Center: Clean View Switcher */}
-        <nav
-          aria-label="Pilihan Tampilan Layar"
-          className="flex items-center rounded-control border border-edge/60 bg-soft p-1"
-        >
-          {/* Patient Screen Button */}
-          <button
-            type="button"
-            onClick={() => setViewMode('patient')}
-            className={`flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-xs font-bold transition-all ${
-              viewMode === 'patient'
-                ? 'bg-brand text-brand-ink shadow-sm'
-                : 'text-muted hover:text-ink'
-            }`}
-            aria-current={viewMode === 'patient' || viewMode === 'split' ? 'page' : undefined}
+        {/* Right: Split Mode & Zero-Persistence Indicators */}
+        <div className="flex items-center gap-2">
+          <div
+            aria-label="Mode Tampilan Aktif"
+            className="inline-flex items-center gap-1.5 rounded-control border border-line bg-soft px-3 py-1.5 text-xs font-bold text-ink"
           >
-            <User className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Layar Pasien</span>
-          </button>
+            <Columns className="h-3.5 w-3.5 text-blue" aria-hidden="true" />
+            <span>Mode Berdampingan</span>
+          </div>
 
-          {/* Nurse Screen Button */}
-          <button
-            type="button"
-            onClick={() => setViewMode('nurse')}
-            className={`flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-xs font-bold transition-all ${
-              viewMode === 'nurse'
-                ? 'bg-brand text-brand-ink shadow-sm'
-                : 'text-muted hover:text-ink'
-            }`}
-            aria-current={viewMode === 'nurse' ? 'page' : undefined}
-          >
-            <Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Layar Petugas</span>
-          </button>
-
-          {/* Split Screen Button (Desktop only) */}
-          <button
-            type="button"
-            onClick={() => setViewMode('split')}
-            className={`hidden min-[901px]:flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-xs font-bold transition-all ${
-              viewMode === 'split'
-                ? 'bg-brand text-brand-ink shadow-sm'
-                : 'text-muted hover:text-ink'
-            }`}
-          >
-            <Columns className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Berdampingan</span>
-          </button>
-        </nav>
-
-        {/* Right: Zero-Persistence Indicator */}
-        <div className="hidden lg:flex items-center gap-1.5 rounded-pill border border-line bg-soft px-2.5 py-1 text-[11px] font-semibold text-muted">
-          <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
-          <span>Memori RAM Saja</span>
+          <div className="hidden sm:flex items-center gap-1.5 rounded-pill border border-line bg-soft px-2.5 py-1 text-[11px] font-semibold text-muted">
+            <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+            <span>Memori RAM Saja</span>
+          </div>
         </div>
       </div>
 
