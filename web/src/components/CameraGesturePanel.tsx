@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-import { Camera, Check, X, CircleDashed, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react';
+import { Camera, Check, X, CircleDashed, ShieldAlert, ArrowRight, HelpCircle, SwitchCamera, ChevronDown, ChevronUp } from 'lucide-react';
 import { PulseLine } from './PulseLine';
 import { GestureClassifier, PredictionResult } from '../ml/gestureClassifier';
 import { processSegmentV2, RawFrameHands } from '../ml/featureExtractor';
@@ -45,6 +45,8 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [modelStatus, setModelStatus] = useState<ModelStatus>('loading');
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [isVocabOpen, setIsVocabOpen] = useState<boolean>(false);
 
   // Recognition state
   const [candidate, setCandidate] = useState<PredictionResult | null>(null);
@@ -132,11 +134,17 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
     };
   }, []);
 
-  // 2. Camera activation (strictly user-triggered)
-  const startCamera = async () => {
+  // 2. Camera activation (strictly user-triggered) with back/front camera support
+  const startCamera = async (overrideFacingMode?: 'user' | 'environment') => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraStatus('unsupported');
       return;
+    }
+
+    const targetFacing = overrideFacingMode || facingMode;
+
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
     }
 
     setCameraStatus('requesting');
@@ -145,7 +153,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         video: {
           width: { ideal: 640 },
           height: { ideal: 400 },
-          facingMode: 'user',
+          facingMode: targetFacing,
         },
         audio: false,
       });
@@ -158,8 +166,39 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         await videoRef.current.play();
       }
     } catch (err) {
+      // Graceful fallback: If environment (back camera) fails on desktop/laptop, try 'user'
+      if (targetFacing === 'environment') {
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 400 },
+              facingMode: 'user',
+            },
+            audio: false,
+          });
+          setFacingMode('user');
+          setStream(fallbackStream);
+          setCameraStatus('active');
+          if (videoRef.current) {
+            videoRef.current.srcObject = fallbackStream;
+            await videoRef.current.play();
+          }
+          return;
+        } catch {
+          // both failed
+        }
+      }
       console.warn('Camera access denied or unavailable:', err);
       setCameraStatus('denied');
+    }
+  };
+
+  const toggleFacingMode = async () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    if (cameraStatus === 'active') {
+      await startCamera(nextMode);
     }
   };
 
@@ -269,7 +308,9 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
               }
 
               // Draw skeleton overlay
-              // Mirror coordinates horizontally: (1 - x) * width
+              const isMirrored = facingMode === 'user';
+              const mapX = (xVal: number) => (isMirrored ? (1 - xVal) * width : xVal * width);
+
               for (const hand of detections.landmarks) {
                 // Draw connecting lines (cyan-blue #3D9FD5)
                 ctx.strokeStyle = '#3D9FD5';
@@ -282,8 +323,8 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                   const pEnd = hand[endIdx];
                   if (pStart && pEnd) {
                     ctx.beginPath();
-                    ctx.moveTo((1 - pStart.x) * width, pStart.y * height);
-                    ctx.lineTo((1 - pEnd.x) * width, pEnd.y * height);
+                    ctx.moveTo(mapX(pStart.x), pStart.y * height);
+                    ctx.lineTo(mapX(pEnd.x), pEnd.y * height);
                     ctx.stroke();
                   }
                 }
@@ -292,7 +333,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                 ctx.fillStyle = '#FFFFFF';
                 for (const point of hand) {
                   ctx.beginPath();
-                  ctx.arc((1 - point.x) * width, point.y * height, 3.5, 0, 2 * Math.PI);
+                  ctx.arc(mapX(point.x), point.y * height, 3.5, 0, 2 * Math.PI);
                   ctx.fill();
                 }
               }
@@ -392,7 +433,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
             </p>
             <button
               type="button"
-              onClick={startCamera}
+              onClick={() => startCamera()}
               className="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-control bg-[#22753A] px-5 py-2 text-xs font-bold text-white hover:bg-[#2a8b46] transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-[#5BBF73]"
             >
               <Camera className="h-4 w-4" aria-hidden="true" />
@@ -422,7 +463,20 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         {/* State E: Camera active with video feed & landmark overlay */}
         {cameraStatus === 'active' && (
           <div className="relative h-full w-full">
-            {/* Mirrored webcam stream */}
+            {/* Camera Controls Overlay: Switch Camera */}
+            <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={toggleFacingMode}
+                className="inline-flex items-center gap-1.5 rounded-pill bg-[#0A1428]/85 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white border border-white/20 hover:bg-[#0A1428] active:scale-95 transition-all shadow-sm"
+                aria-label="Balik kamera depan atau belakang"
+              >
+                <SwitchCamera className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{facingMode === 'environment' ? 'Kamera Belakang (Pasien)' : 'Kamera Depan'}</span>
+              </button>
+            </div>
+
+            {/* Video stream with dynamic mirroring based on facingMode */}
             <video
               ref={videoRef}
               autoPlay
@@ -434,7 +488,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                   p.catch(console.error);
                 }
               }}
-              className="absolute inset-0 h-full w-full object-cover scale-x-[-1]"
+              className={`absolute inset-0 h-full w-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
             />
 
             {/* Skeleton Canvas Overlay */}
@@ -485,21 +539,24 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           className="flex flex-col gap-3 rounded-card border-2 border-[#2A6A99] bg-surface p-4 shadow-sm"
         >
           <div className="flex items-center justify-between">
-            {/* Status Badge: Kandidat Prediksi AI (dashed circle + dashed border) */}
+            {/* Status Badge: Kandidat Prediksi AI */}
             <span className="inline-flex items-center gap-1.5 rounded-badge border border-dashed border-[#2A6A99] bg-surface px-2.5 py-1 text-xs font-bold text-[#2A6A99]">
               <CircleDashed className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               <span>Kandidat Prediksi AI</span>
             </span>
 
-            <span className="text-[11px] text-muted">
-              Perlu persetujuan Anda
+            <span className="text-xs font-extrabold text-[#22753A]">
+              👉 Hadapkan layar ke pasien
             </span>
           </div>
 
-          <div className="flex flex-col gap-1 py-1">
+          <div className="flex flex-col gap-1 py-3 text-center bg-soft/80 rounded-control border border-line/70">
+            <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+              Apakah benar keluhan Anda:
+            </span>
             <h4
               id="candidate-prediction-title"
-              className="text-[26px] font-extrabold text-ink leading-tight"
+              className="text-3xl font-black text-ink leading-tight"
             >
               {candidate.predictedClassName}
             </h4>
@@ -514,21 +571,20 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           </div>
 
           {/* Action buttons: Konfirmasi (Aksen) | Batal / Ubah Manual (Sekunder) */}
-          {/* Note: NO CONFIDENCE PERCENTAGE is shown per DESIGN.md R-17 */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
             <button
               type="button"
               onClick={handleConfirmCandidate}
-              className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-control bg-[#22753A] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1b5e2f] transition-all focus:outline-none focus:ring-2 focus:ring-[#5BBF73]"
+              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-control bg-[#22753A] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#1b5e2f] active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-[#5BBF73]"
             >
-              <Check className="h-4 w-4" aria-hidden="true" />
+              <Check className="h-5 w-5" aria-hidden="true" />
               <span>Konfirmasi</span>
             </button>
 
             <button
               type="button"
               onClick={handleCancelCandidate}
-              className="inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-control border border-edge bg-tint px-4 py-2 text-xs font-bold text-ink hover:bg-soft transition-all"
+              className="inline-flex min-h-[52px] items-center justify-center gap-1.5 rounded-control border border-edge bg-tint px-4 py-2.5 text-xs font-bold text-ink hover:bg-soft active:scale-[0.98] transition-all"
             >
               <X className="h-4 w-4" aria-hidden="true" />
               <span>Batal / Ubah Manual</span>
@@ -540,16 +596,38 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       {/* 4. Supported Gestures Vocabulary List (from model_meta.json) */}
       <section
         aria-label="Kosakata Gestur yang Didukung"
-        className="flex flex-col gap-2 rounded-card border border-line bg-soft/70 p-4"
+        className="flex flex-col gap-2 rounded-card border border-line bg-soft/70 p-3 sm:p-4"
       >
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted">
-            Kosakata Gestur yang Didukung ({supportedList.length})
-          </h4>
-          <span className="text-[11px] text-muted">Dataset WL-BISINDO</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsVocabOpen((prev) => !prev)}
+          aria-expanded={isVocabOpen}
+          aria-controls="supported-vocab-grid"
+          className="flex items-center justify-between w-full text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+        >
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted">
+              Kosakata Gestur yang Didukung ({supportedList.length})
+            </h4>
+            <span className="hidden sm:inline text-[11px] text-muted">&bull; WL-BISINDO</span>
+          </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-brand">
+            <span>{isVocabOpen ? 'Sembunyikan' : 'Lihat Kosakata'}</span>
+            {isVocabOpen ? (
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            )}
+          </div>
+        </button>
+
+        <div
+          id="supported-vocab-grid"
+          className={`grid grid-cols-2 gap-2 sm:grid-cols-3 pt-2 border-t border-line/60 ${
+            isVocabOpen ? '' : 'hidden'
+          }`}
+        >
           {supportedList.map((item) => (
             <div
               key={item.className}

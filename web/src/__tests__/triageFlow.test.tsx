@@ -129,10 +129,10 @@ describe('Triage Communication Full Flow (Without Camera / Mic)', () => {
     ).toBeInTheDocument();
   });
 
-  it('always renders side-by-side mode (Mode Berdampingan) and defaults PatientView to Gestur Kamera', () => {
+  it('renders PatientView and NurseView and defaults PatientView to Gestur Kamera', () => {
     render(<App />);
 
-    expect(screen.getByText('Mode Berdampingan')).toBeInTheDocument();
+    expect(screen.getByText('Triase IGD')).toBeInTheDocument();
     expect(screen.getByText('Layar Pasien')).toBeInTheDocument();
     expect(screen.getByText('Layar Petugas')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Gestur Kamera/i })).toHaveAttribute(

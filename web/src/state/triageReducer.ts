@@ -3,6 +3,8 @@ import { TriageState, TriageAction } from '../types';
 export const initialTriageState: TriageState = {
   selectedItemIds: [],
   confirmedItemIds: [],
+  customComplaints: [],
+  confirmedCustomComplaints: [],
   status: 'unconfirmed',
   nurseMessages: [],
   lastUpdated: Date.now(),
@@ -49,11 +51,38 @@ export function triageReducer(state: TriageState, action: TriageAction): TriageS
       };
     }
 
+    case 'ADD_CUSTOM_COMPLAINT': {
+      const text = action.payload.trim();
+      if (!text) return state;
+      const current = state.customComplaints || [];
+      if (current.includes(text)) return state;
+      return {
+        ...state,
+        customComplaints: [...current, text],
+        status: 'unconfirmed',
+        lastUpdated: Date.now(),
+      };
+    }
+
+    case 'REMOVE_CUSTOM_COMPLAINT': {
+      const text = action.payload;
+      const current = state.customComplaints || [];
+      return {
+        ...state,
+        customComplaints: current.filter((item) => item !== text),
+        status: 'unconfirmed',
+        lastUpdated: Date.now(),
+      };
+    }
+
     case 'CONFIRM_SUMMARY': {
-      if (state.selectedItemIds.length === 0) return state;
+      const hasCatalogItems = state.selectedItemIds.length > 0;
+      const hasCustomComplaints = (state.customComplaints || []).length > 0;
+      if (!hasCatalogItems && !hasCustomComplaints) return state;
       return {
         ...state,
         confirmedItemIds: [...state.selectedItemIds],
+        confirmedCustomComplaints: [...(state.customComplaints || [])],
         status: 'confirmed',
         lastUpdated: Date.now(),
       };
@@ -88,6 +117,8 @@ export function triageReducer(state: TriageState, action: TriageAction): TriageS
       return {
         selectedItemIds: [],
         confirmedItemIds: [],
+        customComplaints: [],
+        confirmedCustomComplaints: [],
         status: 'unconfirmed',
         nurseMessages: [],
         lastUpdated: Date.now(),

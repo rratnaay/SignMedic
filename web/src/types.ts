@@ -17,6 +17,8 @@ export interface NurseMessage {
 export interface TriageState {
   selectedItemIds: string[];
   confirmedItemIds: string[];
+  customComplaints?: string[];
+  confirmedCustomComplaints?: string[];
   status: TriageConfirmationStatus;
   nurseMessages: NurseMessage[];
   lastUpdated: number;
@@ -27,6 +29,8 @@ export type TriageAction =
   | { type: 'SELECT_ITEM'; payload: string }
   | { type: 'DESELECT_ITEM'; payload: string }
   | { type: 'REMOVE_ITEM'; payload: string }
+  | { type: 'ADD_CUSTOM_COMPLAINT'; payload: string }
+  | { type: 'REMOVE_CUSTOM_COMPLAINT'; payload: string }
   | { type: 'CONFIRM_SUMMARY' }
   | { type: 'EDIT_SUMMARY' }
   | { type: 'ADD_NURSE_MESSAGE'; payload: { text: string; sender?: 'nurse' | 'patient' } }

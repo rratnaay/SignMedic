@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTriage } from '../state/triageContext';
 import { CATALOG_BY_ID } from '../data/catalog';
 import { getCatalogIcon } from '../ui/iconMap';
-import { CheckCircle2, CircleDot, X, Check, Edit3 } from 'lucide-react';
+import { CheckCircle2, CircleDot, X, Check, Edit3, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 interface SymptomSummaryProps {
   isPatientView?: boolean;
@@ -10,10 +10,17 @@ interface SymptomSummaryProps {
 
 export const SymptomSummary: React.FC<SymptomSummaryProps> = ({ isPatientView = true }) => {
   const { state, dispatch } = useTriage();
+  const [isOpen, setIsOpen] = useState<boolean>(true);
   const isConfirmed = state.status === 'confirmed';
 
   const itemIds = isPatientView ? state.selectedItemIds : (isConfirmed ? state.confirmedItemIds : []);
   const items = itemIds.map((id) => CATALOG_BY_ID[id]).filter(Boolean);
+
+  const customList = isPatientView
+    ? (state.customComplaints || [])
+    : (isConfirmed ? (state.confirmedCustomComplaints || []) : []);
+
+  const totalCount = items.length + customList.length;
 
   const grouped: Record<string, typeof items> = {};
   items.forEach((item) => {
@@ -25,6 +32,10 @@ export const SymptomSummary: React.FC<SymptomSummaryProps> = ({ isPatientView = 
 
   const handleRemove = (id: string) => {
     dispatch({ type: 'REMOVE_ITEM', payload: id });
+  };
+
+  const handleRemoveCustom = (text: string) => {
+    dispatch({ type: 'REMOVE_CUSTOM_COMPLAINT', payload: text });
   };
 
   const handleConfirm = () => {
@@ -40,111 +51,163 @@ export const SymptomSummary: React.FC<SymptomSummaryProps> = ({ isPatientView = 
       aria-label="Ringkasan Keluhan"
       className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-sm"
     >
-      {/* Header bar: Title & Status Badge */}
+      {/* Header bar: Title, Count, Status Badge, and Hide/View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-2.5">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-extrabold text-ink">Ringkasan Keluhan</h3>
-          {items.length > 0 && (
+          {totalCount > 0 && (
             <span className="rounded-badge bg-tint px-2 py-0.5 text-xs font-bold text-ink">
-              {items.length}
+              {totalCount}
             </span>
           )}
         </div>
 
-        {isConfirmed ? (
-          <span
-            className="flex items-center gap-1.5 rounded-badge bg-ok-bg px-2.5 py-1 text-xs font-bold text-ok-text"
-            role="status"
+        <div className="flex items-center gap-2">
+          {isConfirmed ? (
+            <span
+              className="flex items-center gap-1.5 rounded-badge bg-ok-bg px-2.5 py-1 text-xs font-bold text-ok-text"
+              role="status"
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Telah Dikonfirmasi Pasien
+            </span>
+          ) : (
+            <span
+              className="flex items-center gap-1.5 rounded-badge border border-dashed border-blue/70 bg-soft px-2.5 py-1 text-xs font-bold text-blue"
+              role="status"
+            >
+              <CircleDot className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Belum dikonfirmasi
+            </span>
+          )}
+
+          {/* Hide / View Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? 'Sembunyikan ringkasan keluhan' : 'Lihat ringkasan keluhan'}
+            className="flex items-center gap-1 rounded-control border border-line bg-soft px-2.5 py-1 text-xs font-extrabold text-ink hover:bg-tint transition-colors"
           >
-            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Telah Dikonfirmasi Pasien
-          </span>
-        ) : (
-          <span
-            className="flex items-center gap-1.5 rounded-badge border border-dashed border-blue/70 bg-soft px-2.5 py-1 text-xs font-bold text-blue"
-            role="status"
-          >
-            <CircleDot className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Belum dikonfirmasi
-          </span>
-        )}
+            <span>{isOpen ? 'Sembunyikan' : 'Lihat'}</span>
+            {isOpen ? (
+              <ChevronUp className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Summary Content */}
-      {items.length === 0 ? (
-        <div className="flex min-h-[64px] items-center justify-center rounded-control border border-dashed border-line bg-soft/40 p-3 text-center">
-          <p className="text-xs font-medium text-muted">
-            {isPatientView
-              ? 'Belum ada pilihan. Pilih pada papan gambar.'
-              : 'Menunggu pasien mengonfirmasi ringkasan keluhan.'}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {Object.entries(grouped).map(([category, catItems]) => (
-            <div key={category} className="flex flex-col gap-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted">
-                {category}
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {catItems.map((item) => {
-                  const Icon = getCatalogIcon(item.id);
-                  return (
+      {/* Collapsible Content */}
+      <div className={`flex flex-col gap-3 ${isOpen ? '' : 'hidden'}`}>
+        {/* Empty State */}
+        {totalCount === 0 ? (
+          <div className="flex min-h-[64px] items-center justify-center rounded-control border border-dashed border-line bg-soft/40 p-3 text-center">
+            <p className="text-xs font-medium text-muted">
+              {isPatientView
+                ? 'Belum ada pilihan. Pilih pada papan gambar.'
+                : 'Menunggu pasien mengonfirmasi ringkasan keluhan.'}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {/* 1. Catalog Grouped Items */}
+            {Object.entries(grouped).map(([category, catItems]) => (
+              <div key={category} className="flex flex-col gap-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted">
+                  {category}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {catItems.map((item) => {
+                    const Icon = getCatalogIcon(item.id);
+                    return (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-tint/80 px-2.5 py-1 text-xs font-bold text-ink"
+                      >
+                        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-brand" />}
+                        <span>{item.label}</span>
+                        {isPatientView && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(item.id)}
+                            aria-label={`Hapus ${item.label}`}
+                            className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-muted hover:bg-err hover:text-white transition-colors"
+                          >
+                            <X className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* 2. Patient Custom Typed Complaints */}
+            {customList.length > 0 && (
+              <div className="flex flex-col gap-1 pt-1 border-t border-line/50">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue">
+                  Keluhan Tertulis (Ketik Sendiri)
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {customList.map((complaint) => (
                     <span
-                      key={item.id}
-                      className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-tint/80 px-2.5 py-1 text-xs font-bold text-ink"
+                      key={complaint}
+                      className="inline-flex items-center gap-1.5 rounded-pill border border-blue/40 bg-soft px-3 py-1 text-xs font-bold text-ink"
                     >
-                      {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-brand" />}
-                      <span>{item.label}</span>
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-blue" aria-hidden="true" />
+                      <span>{complaint}</span>
                       {isPatientView && (
                         <button
                           type="button"
-                          onClick={() => handleRemove(item.id)}
-                          aria-label={`Hapus ${item.label}`}
+                          onClick={() => handleRemoveCustom(complaint)}
+                          aria-label={`Hapus keluhan tertulis ${complaint}`}
                           className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-muted hover:bg-err hover:text-white transition-colors"
                         >
                           <X className="h-3 w-3" aria-hidden="true" />
                         </button>
                       )}
                     </span>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {/* Patient Action Buttons */}
-      {isPatientView && (
-        <div className="flex flex-col gap-2 pt-2 border-t border-line/60 sm:flex-row">
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={state.selectedItemIds.length === 0 || isConfirmed}
-            aria-disabled={state.selectedItemIds.length === 0 || isConfirmed}
-            className={`flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-control px-4 py-2.5 text-sm font-extrabold text-accent-ink transition-all ${
-              state.selectedItemIds.length === 0 || isConfirmed
-                ? 'cursor-not-allowed bg-accent/40 text-white/70'
-                : 'bg-accent hover:opacity-95 shadow-sm active:scale-[0.99]'
-            }`}
-          >
-            <Check className="h-4 w-4" aria-hidden="true" />
-            Konfirmasi & Tampilkan ke Petugas
-          </button>
-
-          {isConfirmed && (
+        {/* Patient Action Buttons */}
+        {isPatientView && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-line/60 sm:flex-row">
             <button
               type="button"
-              onClick={handleEdit}
-              className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-control border border-edge bg-soft px-3 py-2 text-xs font-bold text-ink hover:bg-tint active:scale-[0.99]"
+              onClick={handleConfirm}
+              disabled={totalCount === 0 || isConfirmed}
+              aria-disabled={totalCount === 0 || isConfirmed}
+              className={`flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-control px-4 py-2.5 text-sm font-extrabold text-accent-ink transition-all ${
+                totalCount === 0 || isConfirmed
+                  ? 'cursor-not-allowed bg-accent/40 text-white/70'
+                  : 'bg-accent hover:opacity-95 shadow-sm active:scale-[0.99]'
+              }`}
             >
-              <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
-              Ubah Ringkasan
+              <Check className="h-4 w-4" aria-hidden="true" />
+              Konfirmasi & Tampilkan ke Petugas
             </button>
-          )}
-        </div>
-      )}
+
+            {isConfirmed && (
+              <button
+                type="button"
+                onClick={handleEdit}
+                className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-control border border-edge bg-soft px-3 py-2 text-xs font-bold text-ink hover:bg-tint active:scale-[0.99]"
+              >
+                <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                Ubah Ringkasan
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 };

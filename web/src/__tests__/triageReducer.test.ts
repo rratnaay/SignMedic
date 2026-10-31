@@ -122,6 +122,8 @@ describe('triageReducer unit tests', () => {
     const dirtyState: TriageState = {
       selectedItemIds: ['keluhan_sakit_nyeri'],
       confirmedItemIds: ['keluhan_sakit_nyeri'],
+      customComplaints: ['Luka di siku'],
+      confirmedCustomComplaints: ['Luka di siku'],
       status: 'confirmed',
       nurseMessages: [{ id: '1', text: 'Halo', timestamp: 12345, sender: 'nurse' }],
       lastUpdated: 100,
@@ -130,7 +132,38 @@ describe('triageReducer unit tests', () => {
     const cleanState = triageReducer(dirtyState, { type: 'RESET_SESSION' });
     expect(cleanState.selectedItemIds).toEqual([]);
     expect(cleanState.confirmedItemIds).toEqual([]);
+    expect(cleanState.customComplaints).toEqual([]);
+    expect(cleanState.confirmedCustomComplaints).toEqual([]);
     expect(cleanState.status).toBe('unconfirmed');
     expect(cleanState.nurseMessages).toEqual([]);
+  });
+
+  it('should add and remove custom complaints typed by patient', () => {
+    let state = triageReducer(initialTriageState, {
+      type: 'ADD_CUSTOM_COMPLAINT',
+      payload: 'Terjatuh dari sepeda',
+    });
+    expect(state.customComplaints).toEqual(['Terjatuh dari sepeda']);
+    expect(state.status).toBe('unconfirmed');
+
+    // Duplicate text should not duplicate
+    state = triageReducer(state, {
+      type: 'ADD_CUSTOM_COMPLAINT',
+      payload: 'Terjatuh dari sepeda',
+    });
+    expect(state.customComplaints?.length).toBe(1);
+
+    // Confirm summary with custom complaint
+    state = triageReducer(state, { type: 'CONFIRM_SUMMARY' });
+    expect(state.status).toBe('confirmed');
+    expect(state.confirmedCustomComplaints).toEqual(['Terjatuh dari sepeda']);
+
+    // Remove custom complaint
+    state = triageReducer(state, {
+      type: 'REMOVE_CUSTOM_COMPLAINT',
+      payload: 'Terjatuh dari sepeda',
+    });
+    expect(state.customComplaints).toEqual([]);
+    expect(state.status).toBe('unconfirmed');
   });
 });

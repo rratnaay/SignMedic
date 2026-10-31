@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { CATALOG_BY_ID } from '../data/catalog';
 import { getCatalogIcon } from '../ui/iconMap';
-import { Check, AlertOctagon } from 'lucide-react';
+import { Check, AlertOctagon, PenSquare, Plus, X } from 'lucide-react';
 import { useTriage } from '../state/triageContext';
 
 export const VisualBoard: React.FC = () => {
   const { state, dispatch } = useTriage();
   const selectedIds = new Set(state.selectedItemIds);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [customInput, setCustomInput] = useState<string>('');
 
   const urgentItem = CATALOG_BY_ID['kebutuhan_bantuan_segera'];
 
@@ -43,12 +44,26 @@ export const VisualBoard: React.FC = () => {
     dispatch({ type: 'TOGGLE_ITEM', payload: id });
   };
 
+  const handleAddCustomComplaint = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = customInput.trim();
+    if (!trimmed) return;
+    dispatch({ type: 'ADD_CUSTOM_COMPLAINT', payload: trimmed });
+    setCustomInput('');
+  };
+
+  const handleRemoveCustom = (text: string) => {
+    dispatch({ type: 'REMOVE_CUSTOM_COMPLAINT', payload: text });
+  };
+
   const isUrgentSelected = urgentItem ? selectedIds.has(urgentItem.id) : false;
 
   const visibleCategories =
     activeCategory === 'all'
       ? categories
       : categories.filter((c) => c.id === activeCategory);
+
+  const customComplaints = state.customComplaints || [];
 
   return (
     <section aria-label="Papan Komunikasi Visual" className="flex flex-col gap-4">
@@ -91,7 +106,66 @@ export const VisualBoard: React.FC = () => {
         </button>
       )}
 
-      {/* 2. Quick Category Filter Pills */}
+      {/* 2. Patient Custom Typed Complaint Input */}
+      <div className="flex flex-col gap-2 rounded-card border border-line bg-soft/60 p-3.5 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenSquare className="h-4 w-4 text-brand" aria-hidden="true" />
+            <h3 className="text-xs font-extrabold text-ink">
+              Ketik Keluhan Sendiri (Bebas)
+            </h3>
+          </div>
+          <span className="text-[10px] font-semibold text-muted">
+            Ketik jika tidak ada di gambar
+          </span>
+        </div>
+
+        <form onSubmit={handleAddCustomComplaint} className="flex gap-2">
+          <input
+            type="text"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            placeholder="Contoh: Terjatuh dari motor, gigi depan patah..."
+            className="min-h-[42px] flex-1 rounded-control border border-edge/80 bg-surface px-3 py-1.5 text-xs font-semibold text-ink placeholder:text-muted/70 focus-visible:outline focus-visible:outline-3 focus-visible:outline-brand focus-visible:outline-offset-2"
+          />
+          <button
+            type="submit"
+            disabled={!customInput.trim()}
+            className={`flex min-h-[42px] shrink-0 items-center justify-center gap-1.5 rounded-control px-4 py-2 text-xs font-extrabold transition-all ${
+              !customInput.trim()
+                ? 'cursor-not-allowed bg-brand/40 text-brand-ink/70'
+                : 'bg-brand text-brand-ink hover:opacity-90 shadow-sm active:scale-[0.98]'
+            }`}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Tambah</span>
+          </button>
+        </form>
+
+        {/* Tags of Custom Typed Complaints */}
+        {customComplaints.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1.5 border-t border-line/60">
+            {customComplaints.map((complaint) => (
+              <span
+                key={complaint}
+                className="inline-flex items-center gap-1.5 rounded-pill border border-brand/40 bg-tint px-2.5 py-1 text-xs font-bold text-ink"
+              >
+                <span>{complaint}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveCustom(complaint)}
+                  aria-label={`Hapus ${complaint}`}
+                  className="rounded-full p-0.5 text-muted hover:bg-err hover:text-white transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Quick Category Filter Pills */}
       <div
         className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold"
         aria-label="Filter Kategori Gejala"
@@ -131,7 +205,7 @@ export const VisualBoard: React.FC = () => {
         })}
       </div>
 
-      {/* 3. Category Grid Sections (No unnecessary text clutter) */}
+      {/* 4. Category Grid Sections */}
       <div className="flex flex-col gap-4">
         {visibleCategories.map((cat) => {
           const items = cat.ids.map((id) => CATALOG_BY_ID[id]).filter(Boolean);
