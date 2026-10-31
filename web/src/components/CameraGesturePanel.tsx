@@ -75,11 +75,17 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
         let vision;
         try {
-          vision = await FilesetResolver.forVisionTasks('/wasm');
+          const testRes = await fetch('/wasm/vision_wasm_internal.js', { method: 'HEAD' });
+          const contentType = testRes.headers.get('content-type') || '';
+          if (testRes.ok && !contentType.includes('text/html')) {
+            vision = await FilesetResolver.forVisionTasks('/wasm');
+          } else {
+            throw new Error('Local wasm not available');
+          }
         } catch {
-          // Fallback to CDN resolver if local wasm serving fails
+          // Fallback to official pinned CDN resolver if local wasm is not available
           vision = await FilesetResolver.forVisionTasks(
-            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm'
           );
         }
 
