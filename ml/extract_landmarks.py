@@ -338,6 +338,12 @@ def process_single_video(video_path):
                 (0.00, 0.92),   # Slightly early end
                 (0.06, 0.94),   # Centered tighter crop
             ]
+            if raw_label == 32:
+                windows.extend([
+                    (0.02, 0.98),   # Subtle trim
+                    (0.10, 0.95),   # Shifted window
+                    (0.00, 0.90),   # Early release
+                ])
             for w_start, w_end in windows:
                 s_i = int(w_start * L)
                 e_i = max(s_i + 5, int(w_end * L))

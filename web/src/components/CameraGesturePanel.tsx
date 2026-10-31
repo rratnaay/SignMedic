@@ -146,6 +146,20 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
     };
   }, []);
 
+  const safePlayVideo = (video: HTMLVideoElement | null) => {
+    if (!video) return;
+    try {
+      const p = video.play();
+      if (p !== undefined && typeof p?.catch === 'function') {
+        p.catch((err) => {
+          console.warn('Video play interrupted:', err);
+        });
+      }
+    } catch (err) {
+      console.warn('Video play call error:', err);
+    }
+  };
+
   // 2. Camera activation (strictly user-triggered)
   const startCamera = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -169,13 +183,49 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       setCameraStatus('active');
 
       if (videoRef.current) {
+        videoRef.current.muted = true;
         videoRef.current.srcObject = mediaStream;
+        safePlayVideo(videoRef.current);
       }
     } catch (err) {
       console.warn('Camera access denied or unavailable:', err);
       setCameraStatus('denied');
     }
   };
+
+  // Connect stream to video element whenever stream changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    video.muted = true;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+
+    const onPlay = () => safePlayVideo(video);
+
+    video.addEventListener('loadedmetadata', onPlay);
+    video.addEventListener('canplay', onPlay);
+    safePlayVideo(video);
+
+    return () => {
+      video.removeEventListener('loadedmetadata', onPlay);
+      video.removeEventListener('canplay', onPlay);
+    };
+  }, [stream, cameraStatus]);
+
+  // Callback ref to guarantee stream attachment whenever video mounts
+  const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (node && stream) {
+      node.muted = true;
+      if (node.srcObject !== stream) {
+        node.srcObject = stream;
+      }
+      safePlayVideo(node);
+    }
+  }, [stream]);
 
   // Stop camera stream when unmounted
   useEffect(() => {
@@ -224,6 +274,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
     if (cameraStatus !== 'active' || modelStatus !== 'ready') return;
 
     let lastVideoTime = -1;
+    let lastTimestampMs = -1;
 
     const renderLoop = () => {
       const video = videoRef.current;
@@ -231,6 +282,10 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       const landmarker = handLandmarkerRef.current;
 
       if (video && canvas && landmarker && video.readyState >= 2) {
+        if (video.paused && !video.ended) {
+          safePlayVideo(video);
+        }
+
         const ctx = canvas.getContext('2d');
         if (ctx) {
           // Adjust canvas internal dimensions to match video
@@ -248,97 +303,104 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           // Detect hand landmarks
           if (video.currentTime !== lastVideoTime) {
             lastVideoTime = video.currentTime;
-            const startTimeMs = performance.now();
-            const detections = landmarker.detectForVideo(video, startTimeMs);
+            const nowMs = performance.now();
+            const startTimeMs = nowMs > lastTimestampMs ? nowMs : lastTimestampMs + 1;
+            lastTimestampMs = startTimeMs;
 
-            const hasHands = detections.landmarks && detections.landmarks.length > 0;
-            setHandsDetectedInCurrentFrame(hasHands);
+            try {
+              const detections = landmarker.detectForVideo(video, startTimeMs);
 
-            if (hasHands) {
-              // Reset absent frames counter
-              absentCounterRef.current = 0;
+              const hasHands = detections.landmarks && detections.landmarks.length > 0;
+              setHandsDetectedInCurrentFrame(hasHands);
 
-              // Extract raw normalized landmarks
-              const frameHands: RawFrameHands = detections.landmarks.map((hand) =>
-                hand.map((lm) => ({ x: lm.x, y: lm.y, z: lm.z }))
-              );
+              if (hasHands) {
+                // Reset absent frames counter
+                absentCounterRef.current = 0;
 
-              // Accumulate in sliding buffer (up to MAX_BUFFER frames)
-              bufferRef.current.push(frameHands);
-              if (bufferRef.current.length > MAX_BUFFER) {
-                bufferRef.current.shift(); // FIFO rolling window
-              }
+                // Extract raw normalized landmarks
+                const frameHands: RawFrameHands = detections.landmarks.map((hand) =>
+                  hand.map((lm) => ({ x: lm.x, y: lm.y, z: lm.z }))
+                );
 
-              frameStepRef.current += 1;
-              const now = performance.now();
-              const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
-
-              // Reset buffer and EMA probability smoothing when cooldown ends
-              if (wasCoolingDownRef.current && !isCoolingDown) {
-                bufferRef.current = [];
-                classifierRef.current?.resetStability();
-              }
-              wasCoolingDownRef.current = isCoolingDown;
-
-              // Sliding cadence inference: evaluate every CADENCE_FRAMES once buffer has minimal frames
-              if (
-                !isCoolingDown &&
-                !candidateRef.current &&
-                bufferRef.current.length >= MIN_ACTIVE_FRAMES &&
-                frameStepRef.current % CADENCE_FRAMES === 0
-              ) {
-                const segment = [...bufferRef.current];
-                runSegmentInference(segment);
-              }
-
-              // Draw skeleton overlay
-              // Mirror coordinates horizontally: (1 - x) * width
-              for (const hand of detections.landmarks) {
-                // Draw connecting lines (cyan-blue #3D9FD5)
-                ctx.strokeStyle = '#3D9FD5';
-                ctx.lineWidth = 2.5;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
-                  const pStart = hand[startIdx];
-                  const pEnd = hand[endIdx];
-                  if (pStart && pEnd) {
-                    ctx.beginPath();
-                    ctx.moveTo((1 - pStart.x) * width, pStart.y * height);
-                    ctx.lineTo((1 - pEnd.x) * width, pEnd.y * height);
-                    ctx.stroke();
-                  }
+                // Accumulate in sliding buffer (up to MAX_BUFFER frames)
+                bufferRef.current.push(frameHands);
+                if (bufferRef.current.length > MAX_BUFFER) {
+                  bufferRef.current.shift(); // FIFO rolling window
                 }
 
-                // Draw joints as white dots (#FFFFFF)
-                ctx.fillStyle = '#FFFFFF';
-                for (const point of hand) {
-                  ctx.beginPath();
-                  ctx.arc((1 - point.x) * width, point.y * height, 3.5, 0, 2 * Math.PI);
-                  ctx.fill();
-                }
-              }
-            } else {
-              // No hand detected in this frame
-              if (bufferRef.current.length > 0) {
-                absentCounterRef.current += 1;
-                // When hands are absent for >= 5 consecutive frames, check if final segment should be evaluated
-                if (absentCounterRef.current >= 5) {
-                  const now = performance.now();
-                  const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
-                  if (!isCoolingDown && !candidateRef.current && bufferRef.current.length >= MIN_ACTIVE_FRAMES) {
-                    const segment = [...bufferRef.current];
-                    runSegmentInference(segment);
-                  }
+                frameStepRef.current += 1;
+                const now = performance.now();
+                const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
+
+                // Reset buffer and EMA probability smoothing when cooldown ends
+                if (wasCoolingDownRef.current && !isCoolingDown) {
                   bufferRef.current = [];
-                  absentCounterRef.current = 0;
                   classifierRef.current?.resetStability();
                 }
+                wasCoolingDownRef.current = isCoolingDown;
+
+                // Sliding cadence inference: evaluate every CADENCE_FRAMES once buffer has minimal frames
+                if (
+                  !isCoolingDown &&
+                  !candidateRef.current &&
+                  bufferRef.current.length >= MIN_ACTIVE_FRAMES &&
+                  frameStepRef.current % CADENCE_FRAMES === 0
+                ) {
+                  const segment = [...bufferRef.current];
+                  runSegmentInference(segment);
+                }
+
+                // Draw skeleton overlay
+                // Mirror coordinates horizontally: (1 - x) * width
+                for (const hand of detections.landmarks) {
+                  // Draw connecting lines (cyan-blue #3D9FD5)
+                  ctx.strokeStyle = '#3D9FD5';
+                  ctx.lineWidth = 2.5;
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
+
+                  for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
+                    const pStart = hand[startIdx];
+                    const pEnd = hand[endIdx];
+                    if (pStart && pEnd) {
+                      ctx.beginPath();
+                      ctx.moveTo((1 - pStart.x) * width, pStart.y * height);
+                      ctx.lineTo((1 - pEnd.x) * width, pEnd.y * height);
+                      ctx.stroke();
+                    }
+                  }
+
+                  // Draw joints as white dots (#FFFFFF)
+                  ctx.fillStyle = '#FFFFFF';
+                  for (const point of hand) {
+                    ctx.beginPath();
+                    ctx.arc((1 - point.x) * width, point.y * height, 3.5, 0, 2 * Math.PI);
+                    ctx.fill();
+                  }
+                }
               } else {
-                // Hands remain absent (idle): ensure stability and smoothing stay clean
-                classifierRef.current?.resetStability();
+                // No hand detected in this frame
+                if (bufferRef.current.length > 0) {
+                  absentCounterRef.current += 1;
+                  // When hands are absent for >= 5 consecutive frames, check if final segment should be evaluated
+                  if (absentCounterRef.current >= 5) {
+                    const now = performance.now();
+                    const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
+                    if (!isCoolingDown && !candidateRef.current && bufferRef.current.length >= MIN_ACTIVE_FRAMES) {
+                      const segment = [...bufferRef.current];
+                      runSegmentInference(segment);
+                    }
+                    bufferRef.current = [];
+                    absentCounterRef.current = 0;
+                    classifierRef.current?.resetStability();
+                  }
+                } else {
+                  // Hands remain absent (idle): ensure stability and smoothing stay clean
+                  classifierRef.current?.resetStability();
+                }
               }
+            } catch (detErr) {
+              console.warn('MediaPipe frame detection error:', detErr);
             }
           }
         }
@@ -389,9 +451,50 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         aria-label="Area Pengenalan Gestur Kamera"
         className="relative aspect-[16/10] w-full overflow-hidden rounded-panel border border-edge bg-[#142C58] shadow-sm flex flex-col items-center justify-center text-white"
       >
+        {/* Persistent Mirrored Webcam Stream */}
+        <video
+          ref={setVideoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`absolute inset-0 h-full w-full object-cover scale-x-[-1] transition-opacity duration-200 ${
+            cameraStatus === 'active' ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none -z-10'
+          }`}
+        />
+
+        {/* Persistent Skeleton Canvas Overlay */}
+        <canvas
+          ref={canvasRef}
+          className={`absolute inset-0 h-full w-full pointer-events-none transition-opacity duration-200 ${
+            cameraStatus === 'active' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'
+          }`}
+        />
+
+        {/* Bottom status bar */}
+        {cameraStatus === 'active' && (
+          <div className="absolute bottom-0 inset-x-0 z-20 bg-[#0A1428]/85 backdrop-blur-sm px-4 py-2 flex items-center justify-between text-xs text-white">
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  handsDetectedInCurrentFrame ? 'bg-[#5BBF73] animate-pulse' : 'bg-white/40'
+                }`}
+                aria-hidden="true"
+              />
+              <span className="font-medium">
+                {handsDetectedInCurrentFrame
+                  ? 'Tangan terdeteksi — Peragakan gestur BISINDO'
+                  : 'Arahkan tangan ke depan kamera'}
+              </span>
+            </div>
+            <span className="text-[11px] text-white/70 hidden sm:inline">
+              Privasi terjaga: frame video tidak disimpan
+            </span>
+          </div>
+        )}
+
         {/* State A: Model loading */}
         {modelStatus === 'loading' && (
-          <div className="flex flex-col items-center gap-3 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 p-6 text-center z-20">
             <div className="w-16 text-[#3D9FD5]">
               <PulseLine />
             </div>
@@ -403,7 +506,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
         {/* State B: Model failed */}
         {modelStatus === 'error' && (
-          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm">
+          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm z-20">
             <ShieldAlert className="h-8 w-8 text-[#FFB4AB]" aria-hidden="true" />
             <p className="text-sm font-semibold text-white">
               Pengenalan gestur tidak tersedia. Gunakan Papan Visual.
@@ -421,7 +524,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
         {/* State C: Model ready, Camera idle (not requested yet) */}
         {modelStatus === 'ready' && cameraStatus === 'idle' && (
-          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm">
+          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm z-20">
             <Camera className="h-10 w-10 text-[#8CC6EE]" aria-hidden="true" />
             <p className="text-sm font-semibold text-white">Kamera belum aktif.</p>
             <p className="text-xs text-white/70">
@@ -438,9 +541,21 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           </div>
         )}
 
+        {/* State C2: Requesting camera permission */}
+        {cameraStatus === 'requesting' && (
+          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm z-20">
+            <div className="w-16 text-[#3D9FD5]">
+              <PulseLine />
+            </div>
+            <p className="text-sm font-semibold text-white/90">
+              Menghubungkan ke kamera...
+            </p>
+          </div>
+        )}
+
         {/* State D: Camera permission denied or device error */}
         {cameraStatus === 'denied' && (
-          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm">
+          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm z-20">
             <ShieldAlert className="h-8 w-8 text-[#FFB4AB]" aria-hidden="true" />
             <p className="text-sm font-semibold text-white">
               Kamera tidak bisa dipakai. Papan Visual tetap bisa digunakan.
@@ -456,49 +571,21 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
           </div>
         )}
 
-        {/* State E: Camera active with video feed & landmark overlay */}
-        {cameraStatus === 'active' && (
-          <div className="relative h-full w-full">
-            {/* Mirrored webcam stream */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              onLoadedMetadata={() => {
-                const p = videoRef.current?.play();
-                if (p !== undefined && typeof p?.catch === 'function') {
-                  p.catch(console.error);
-                }
-              }}
-              className="absolute inset-0 h-full w-full object-cover scale-x-[-1]"
-            />
-
-            {/* Skeleton Canvas Overlay */}
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 h-full w-full pointer-events-none"
-            />
-
-            {/* Bottom status bar */}
-            <div className="absolute bottom-0 inset-x-0 bg-[#0A1428]/85 backdrop-blur-sm px-4 py-2 flex items-center justify-between text-xs text-white">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    handsDetectedInCurrentFrame ? 'bg-[#5BBF73] animate-pulse' : 'bg-white/40'
-                  }`}
-                  aria-hidden="true"
-                />
-                <span className="font-medium">
-                  {handsDetectedInCurrentFrame
-                    ? 'Tangan terdeteksi — Peragakan gestur BISINDO'
-                    : 'Arahkan tangan ke depan kamera'}
-                </span>
-              </div>
-              <span className="text-[11px] text-white/70 hidden sm:inline">
-                Privasi terjaga: frame video tidak disimpan
-              </span>
-            </div>
+        {/* State D2: Unsupported device */}
+        {cameraStatus === 'unsupported' && (
+          <div className="flex flex-col items-center gap-3 p-6 text-center max-w-sm z-20">
+            <ShieldAlert className="h-8 w-8 text-[#FFB4AB]" aria-hidden="true" />
+            <p className="text-sm font-semibold text-white">
+              Perangkat kamera tidak didukung di browser ini. Papan Visual tetap bisa digunakan.
+            </p>
+            <button
+              type="button"
+              onClick={onSwitchToBoard}
+              className="mt-2 inline-flex min-h-[42px] items-center gap-1.5 rounded-control bg-surface px-4 py-2 text-xs font-bold text-ink hover:bg-soft transition-colors"
+            >
+              <span>Buka Papan Visual</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
         )}
       </section>
