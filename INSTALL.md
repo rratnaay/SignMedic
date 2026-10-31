@@ -104,8 +104,9 @@ Gunakan skenario ini jika Anda bertugas di bagian Machine Learning untuk mengola
    ```
 
 ### 3. Menyiapkan Dataset Video
-1. Letakkan seluruh berkas rekaman video gestur BISINDO format `.mp4` ke dalam folder `ml/data/raw/`.
-2. Format penamaan berkas yang didukung:
+1. Unduh dataset video resmi dari Kaggle: [WL-BISINDO (Word-Level Indonesian Sign Language Dataset)](https://www.kaggle.com/datasets/glennleonali/wl-bisindo) oleh Glenn Leonali.
+2. Letakkan seluruh berkas rekaman video gestur BISINDO format `.mp4` ke dalam folder `ml/data/raw/`.
+3. Format penamaan berkas yang didukung:
    `signer<ID>_label<LABEL>_sample<SAMPLE>.mp4`
 
 ### 4. Menjalankan Pipeline Machine Learning

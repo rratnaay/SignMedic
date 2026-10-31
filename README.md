@@ -84,7 +84,16 @@ SignMedic/
 
 ---
 
-## 4. Cara Menjalankan Aplikasi
+## 4. Dataset & Pelatihan Model
+
+Dataset video bahasa isyarat yang digunakan dalam pengembangan dan pelatihan model ini bersumber dari:
+* **Dataset Resmi:** [WL-BISINDO (Word-Level Indonesian Sign Language Dataset)](https://www.kaggle.com/datasets/glennleonali/wl-bisindo) oleh Glenn Leonali di Kaggle.
+* **Format & Spesifikasi Fitur:** Diekstraksi menggunakan MediaPipe Tasks Vision ($T=30 \times 129$ fitur) dengan normalisasi Euclidean 3D, *active hand tracking*, penekanan tangan meja (*table-hand suppression*), dan penskalaan lebar telapak tangan sesuai [`FEATURE_SPEC.md`](ml/FEATURE_SPEC.md) v2.0.0.
+* **Metode Validasi:** *Clean Nested Leave-One-Signer-Out* (LOSO Cross-Validation) untuk memastikan model mampu menggeneralisasi peragaan isyarat dari pasien baru yang belum pernah dilihat sebelumnya.
+
+---
+
+## 5. Cara Menjalankan Aplikasi
 
 ### Skenario 1: Menjalankan Aplikasi Web (Frontend & Demo)
 Aplikasi web sudah dilengkapi dengan model AI bawaan yang telah diekspor. Anda **tidak perlu memasang Python** untuk menjalankan web.
@@ -136,7 +145,7 @@ Gunakan opsi ini jika Anda ingin mengekstrak video baru, melatih model dengan va
 
 ---
 
-## 5. Prinsip Keamanan & Privasi
+## 6. Prinsip Keamanan & Privasi
 
 1. **Zero Data Transmission (Video & Landmark):** Frame webcam dan koordinat persendian tangan diproses seketika di memori RAM peramban lokal. Tidak ada video yang direkam, disimpan ke media penyimpanan permanen, atau diunggah ke internet.
 2. **Komunikasi Langsung Antar-Perangkat (E2EE P2P):** Sinkronisasi antara layar petugas dan layar pasien berjalan melalui saluran data WebRTC langsung antar-browser tanpa perantara penyimpanan cloud pihak ketiga.
@@ -144,17 +153,16 @@ Gunakan opsi ini jika Anda ingin mengekstrak video baru, melatih model dengan va
 
 ---
 
-## 6. Tim Pengembang
+## 7. Tim Pengembang
 
-Proyek ini dikembangkan dan dirancang oleh:
+Proyek ini dikembangkan dan dirancang oleh tim **Satu Dua Tiga Aamin**:
 
-* **Satu**
-* **Dua**
-* **Tiga**
-* **Aamin**
+* **Ratna Yuliana Triyono**
+* **Natasya Jollyn Karisya Agustin**
+* **Gani Abi Saputra Van Sigu**
 
 ---
 
-## 7. Lisensi
+## 8. Lisensi
 
 Hak Cipta &copy; 2026 Tim SignMedic. Dikembangkan untuk kemanusiaan, inklusivitas layanan kesehatan, dan aksesibilitas komunikasi pasien Tuli di Indonesia.
