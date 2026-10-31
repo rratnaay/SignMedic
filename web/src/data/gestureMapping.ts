@@ -2,9 +2,7 @@
  * SignMedic Gesture-to-Catalog Mapping Configuration
  * Separate mapping file decoupling ML model classes from catalog items.
  *
- * Dataset context: WL-BISINDO test dataset (6 benchmark classes).
- * As noted in FEATURE_SPEC.md & LIMITATIONS.md, these are proxy benchmark classes
- * mapped directly to triage catalog entries.
+ * Triage catalog: 10 clinical gesture classes mapped directly to triage catalog entries.
  */
 
 import { CATALOG_BY_ID } from './catalog';
@@ -53,6 +51,30 @@ export const GESTURE_MAPPINGS: Record<string, GestureDefinition> = {
     catalogId: 'konfirmasi_ya',
     displayLabel: 'Ya / Mengerti',
     description: 'Apresiasi konfirmasi pesan diterima',
+  },
+  Batuk: {
+    className: 'Batuk',
+    catalogId: 'keluhan_batuk',
+    displayLabel: 'Batuk',
+    description: 'Gejala batuk terus-menerus atau batuk berdahak',
+  },
+  Demam: {
+    className: 'Demam',
+    catalogId: 'keluhan_demam',
+    displayLabel: 'Demam / Panas',
+    description: 'Suhu tubuh terasa panas atau demam tinggi',
+  },
+  Pilek: {
+    className: 'Pilek',
+    catalogId: 'keluhan_pilek',
+    displayLabel: 'Pilek / Flu',
+    description: 'Hidung tersumbat, berair, atau gejala flu',
+  },
+  'Sesak Nafas': {
+    className: 'Sesak Nafas',
+    catalogId: 'keluhan_sesak_napas',
+    displayLabel: 'Sesak Napas',
+    description: 'Sulit bernapas atau dada terasa sesak dan berat',
   },
 };
 

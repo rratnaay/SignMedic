@@ -6,9 +6,10 @@
  * 1. Weight loading from /models/weights.json.
  * 2. Forward pass with TensorFlow.js:
  *    Conv1D (same, relu) -> BatchNorm (eps=1e-3) -> Conv1D (dilated=2, same, relu) -> BatchNorm (eps=1e-3) ->
- *    cuDNN GRU (reset_after: true) -> Dense (relu) -> Dense (softmax, 7 classes).
- * 3. Candidate evaluation with threshold check (threshold >= 0.85) and _OTHER_ rejection.
- * 4. Temporal stability check (N=2 consecutive segments).
+ *    cuDNN GRU (reset_after: true) -> Dense (relu) -> Dense (softmax, 11 classes).
+ * 3. Temporal Probability Smoothing (EMA 0.65/0.35) within active gesture session.
+ * 4. Candidate evaluation with threshold check (threshold >= 0.85) and _OTHER_ rejection.
+ * 5. Temporal stability check (N=2 consecutive segments).
  */
 
 import * as tf from '@tensorflow/tfjs';
@@ -83,6 +84,9 @@ export class GestureClassifier {
 
   // Stability tracker: history of raw predictions
   private consecutiveClassHistory: number[] = [];
+
+  // Temporal Probability Smoothing (EMA)
+  private prevSmoothedProbs: number[] = [];
 
   constructor(
     private modelBasePath: string = '/models'
@@ -186,7 +190,7 @@ export class GestureClassifier {
   }
 
   /**
-   * Runs forward pass for a resampled sequence [30, 129] and returns raw 7-class probabilities.
+   * Runs forward pass for a resampled sequence [30, 129] and returns raw 11-class probabilities.
    */
   predictRawProbabilities(sequence30x129: number[][]): number[] {
     if (!this.isLoaded) {
@@ -245,7 +249,7 @@ export class GestureClassifier {
       // 4. Dense 64
       const d1 = tf.relu(tf.add(tf.matMul(h, this.d1_kernel!), this.d1_bias!));
 
-      // 5. Prediction 7 (Softmax)
+      // 5. Prediction 11 (Softmax)
       const logits = tf.add(tf.matMul(d1, this.pred_kernel!), this.pred_bias!);
       const probs = tf.softmax(logits);
       return Array.from(probs.dataSync());
@@ -254,10 +258,18 @@ export class GestureClassifier {
 
   /**
    * Classifies a resampled sequence according to FEATURE_SPEC v2.0.0 acceptance and stability rules.
+   * Includes Temporal Probability Smoothing (EMA: 0.65 current + 0.35 prev) to eliminate UI flickering.
    */
-  classifySequence(sequence30x129: number[][]): PredictionResult {
-    const probs = this.predictRawProbabilities(sequence30x129);
+  classifySequence(sequence30x129: number[][], applySmoothing: boolean = true): PredictionResult {
+    const rawProbs = this.predictRawProbabilities(sequence30x129);
     const meta = this.getMetadata();
+
+    // Temporal Probability Smoothing (EMA) within active motion session
+    let probs = rawProbs;
+    if (applySmoothing && this.prevSmoothedProbs.length === rawProbs.length) {
+      probs = rawProbs.map((p, i) => 0.65 * p + 0.35 * this.prevSmoothedProbs[i]);
+    }
+    this.prevSmoothedProbs = [...probs];
 
     // Find class with highest probability
     let maxIdx = 0;
@@ -321,14 +333,30 @@ export class GestureClassifier {
 
   resetStability(): void {
     this.consecutiveClassHistory = [];
+    this.prevSmoothedProbs = [];
+  }
+
+  resetSmoothing(): void {
+    this.prevSmoothedProbs = [];
   }
 
   getMetadata(): ModelMetadata {
     if (!this.metadata) {
       return {
-        classes: ['Air', 'Makan', 'Saya', 'Tuli', 'Maaf', 'Terima kasih'],
-        num_classes: 7,
-        reject_class_index: 6,
+        classes: [
+          'Air',
+          'Makan',
+          'Saya',
+          'Tuli',
+          'Maaf',
+          'Terima kasih',
+          'Batuk',
+          'Demam',
+          'Pilek',
+          'Sesak Nafas',
+        ],
+        num_classes: 11,
+        reject_class_index: 10,
         reject_class_name: '_OTHER_',
         T: 30,
         feature_dim: 129,

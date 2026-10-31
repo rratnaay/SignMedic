@@ -1,14 +1,13 @@
 """
-SignMedic Training Pipeline (Clean Nested LOSO with 7-Class OOD Rejection):
-- 7 output neurons: 6 target classes + 1 '_OTHER_' class (index 6).
+SignMedic Training Pipeline (Clean Nested LOSO with 11-Class OOD Rejection):
+- 11 output neurons: 10 target classes + 1 '_OTHER_' class (index 10).
+- Target classes:
+  0: Air, 1: Makan, 2: Saya, 3: Tuli, 4: Maaf, 5: Terima kasih,
+  6: Batuk, 7: Demam, 8: Pilek, 9: Sesak Nafas, 10: _OTHER_
 - Strict nested split: For each test signer X, exactly 1 validation signer V is isolated
   (used for EarlyStopping, ReduceLROnPlateau, and threshold calibration).
   Test signer X (both in-class and out-of-class) is strictly held-out and untouched until evaluation.
-- Reports:
-  - Exact clip counts (e.g. 58/60) per signer for in-class.
-  - Threshold sweep (0.50 to 0.95) with in-class coverage, precision, and OOD rejection rate.
-  - OOD rejection breakdown on unseen test signers.
-  - Signer 3 empirical diagnostic data.
+- Oversampling & 3D geometric augmentation for few-shot new classes to ensure class balance.
 """
 
 import os
@@ -35,9 +34,18 @@ tf.random.set_seed(RANDOM_SEED)
 
 TARGET_T = 30
 FEATURE_DIM = 129
-NUM_CLASSES = 7  # 6 target classes + 1 _OTHER_ class
-REJECT_CLASS_INDEX = 6
+NUM_CLASSES = 11  # 10 target classes + 1 _OTHER_ class
+REJECT_CLASS_INDEX = 10
 REJECT_CLASS_NAME = "_OTHER_"
+
+
+def horizontal_flip(X):
+    """Mirror features (x -> -x). Works on (T, 129) or (N, T, 129).
+    hand_0/hand_1 are wrist-centered, so negating every x component (indices 0::3,
+    covering both hands and delta_wrist.x) turns a right hand into a left hand."""
+    X_f = np.array(X, dtype=np.float32, copy=True)
+    X_f[..., 0::3] *= -1.0
+    return X_f
 
 
 def rotate_2d_sequence(X_seq, angle_deg):
@@ -80,32 +88,43 @@ def scale_jitter_sequence(X_seq, min_s=0.90, max_s=1.10):
     return X_seq * scale
 
 
-def augment_training_data(X_train, y_train, multiplier=4):
+def augment_training_data(X_train, y_train, multiplier=4, boost_new_classes=True):
+    """Each clip yields `multiplier` samples for the original view plus `multiplier`
+    for its horizontal flip (2 * multiplier total, 50:50 right/left). Within each
+    view, the first sample is unmodified and the rest get rotation/time-warp/
+    jitter/scale augmentation.
+    New classes (label 6..9) have fewer seed samples and receive 5x higher oversampling
+    to match the ~240 training samples of benchmark classes."""
     augmented_X = []
     augmented_y = []
     
     for i in range(len(X_train)):
-        sample = X_train[i]
         label = y_train[i]
-        augmented_X.append(sample)
-        augmented_y.append(label)
-        
-        for _ in range(multiplier - 1):
-            angle = np.random.uniform(-15.0, 15.0)
-            factor = np.random.uniform(0.85, 1.15)
-            s_aug = scale_jitter_sequence(
-                gaussian_jitter_sequence(
-                    time_warp_sequence(rotate_2d_sequence(sample, angle), factor),
-                    std=0.008
-                )
-            )
-            augmented_X.append(s_aug)
+        if boost_new_classes and 6 <= label < REJECT_CLASS_INDEX:
+            per_view = multiplier * 5  # 20 per view = 40 samples per base clip
+        else:
+            per_view = max(1, multiplier)
+            
+        for view in (X_train[i], horizontal_flip(X_train[i])):
+            augmented_X.append(view)
             augmented_y.append(label)
+            
+            for _ in range(per_view - 1):
+                angle = np.random.uniform(-15.0, 15.0)
+                factor = np.random.uniform(0.85, 1.15)
+                s_aug = scale_jitter_sequence(
+                    gaussian_jitter_sequence(
+                        time_warp_sequence(rotate_2d_sequence(view, angle), factor),
+                        std=0.008
+                    )
+                )
+                augmented_X.append(s_aug)
+                augmented_y.append(label)
             
     return np.array(augmented_X, dtype=np.float32), np.array(augmented_y, dtype=np.int64)
 
 
-def build_7class_model(input_shape=(TARGET_T, FEATURE_DIM), num_classes=NUM_CLASSES):
+def build_classifier_model(input_shape=(TARGET_T, FEATURE_DIM), num_classes=NUM_CLASSES):
     inputs = layers.Input(shape=input_shape, name="landmarks_input")
     x = layers.Conv1D(64, kernel_size=3, padding="same", activation="relu")(inputs)
     x = layers.BatchNormalization()(x)
@@ -121,7 +140,7 @@ def build_7class_model(input_shape=(TARGET_T, FEATURE_DIM), num_classes=NUM_CLAS
     x = layers.Dropout(0.3)(x)
     outputs = layers.Dense(num_classes, activation="softmax", name="prediction")(x)
     
-    model = keras.Model(inputs=inputs, outputs=outputs, name="signmedic_7class_classifier")
+    model = keras.Model(inputs=inputs, outputs=outputs, name="signmedic_classifier")
     loss_fn = keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=0.001),
@@ -131,14 +150,31 @@ def build_7class_model(input_shape=(TARGET_T, FEATURE_DIM), num_classes=NUM_CLAS
     return model
 
 
+def build_invariant_model(base_model):
+    """Wrap a trained base network with in-graph flip averaging:
+    p = mean(base(x), base(flip(x))). The flip is a frozen diagonal Dense layer
+    (-1 on every x component, +1 elsewhere), so the exported TF.js model is exactly
+    left/right-hand invariant without extra client-side logic."""
+    inputs = layers.Input(shape=(TARGET_T, FEATURE_DIM), name="landmarks_input")
+    sign = np.ones(FEATURE_DIM, dtype=np.float32)
+    sign[0::3] = -1.0
+    flip_layer = layers.Dense(FEATURE_DIM, use_bias=False, trainable=False, name="mirror_flip")
+    flipped = flip_layer(inputs)
+    flip_layer.set_weights([np.diag(sign)])
+    p_orig = base_model(inputs)
+    p_flip = base_model(flipped)
+    outputs = layers.Average(name="tta_prediction")([p_orig, p_flip])
+    return keras.Model(inputs=inputs, outputs=outputs, name=f"signmedic_{NUM_CLASSES}class_mirror_invariant")
+
+
 def plot_confusion_matrix(cm, class_names, output_path):
-    fig, ax = plt.subplots(figsize=(8, 7))
+    fig, ax = plt.subplots(figsize=(10, 9))
     im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
     ax.figure.colorbar(im, ax=ax)
     ax.set(xticks=np.arange(cm.shape[1]),
            yticks=np.arange(cm.shape[0]),
            xticklabels=class_names, yticklabels=class_names,
-           title="Confusion Matrix (6 Target Classes)",
+           title=f"Confusion Matrix ({len(class_names)} Target Classes)",
            ylabel="True Class",
            xlabel="Predicted Class")
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
@@ -172,11 +208,11 @@ def main():
     unique_signers = sorted(list(np.unique(signer_ids)))
     
     print("=" * 70)
-    print("SignMedic Training & Validation: 7-CLASS CLEAN NESTED LOSO")
+    print(f"SignMedic Training & Validation: {NUM_CLASSES}-CLASS CLEAN NESTED LOSO")
     print(f"Target Classes ({len(target_classes)}): {target_classes}")
     print(f"Reject Class : '{REJECT_CLASS_NAME}' at index {REJECT_CLASS_INDEX}")
-    print(f"In-Class Clips: {len(X)} across 5 signers")
-    print(f"OOD Clips     : {len(X_ood)} across 5 signers")
+    print(f"In-Class Clips: {len(X)} across {len(unique_signers)} signers")
+    print(f"OOD Clips     : {len(X_ood)} across {len(unique_signers)} signers")
     print("=" * 70)
     
     all_y_true_in = []
@@ -188,6 +224,12 @@ def main():
     all_ood_probs = []
     all_ood_preds = []
     ood_signer_results = {}
+    
+    all_y_true_flip = []
+    all_y_pred_flip = []
+    all_ood_probs_flip = []
+    all_ood_preds_flip = []
+    mirror_per_signer = {}
     
     for fold_idx, test_signer in enumerate(unique_signers):
         remaining = [s for s in unique_signers if s != test_signer]
@@ -219,8 +261,8 @@ def main():
         X_test_ood = X_ood[ood_tst_mask]
         y_test_ood = y_ood[ood_tst_mask]
         
-        # Augment training set 4x
-        X_trn_aug, y_trn_aug = augment_training_data(X_trn_raw, y_trn_raw, multiplier=4)
+        # Augment training set with oversampled new classes
+        X_trn_aug, y_trn_aug = augment_training_data(X_trn_raw, y_trn_raw, multiplier=4, boost_new_classes=True)
         
         y_trn_oh = keras.utils.to_categorical(y_trn_aug, num_classes=NUM_CLASSES)
         y_val_oh = keras.utils.to_categorical(y_val, num_classes=NUM_CLASSES)
@@ -230,7 +272,7 @@ def main():
         print(f"Val Signer  : {val_signer} | Clips: {len(X_val)} (unaugmented)")
         print(f"Test Signer : {test_signer} | In-Class: {len(X_test_in)}, OOD: {len(X_test_ood)} (untouched)")
         
-        model = build_7class_model()
+        model = build_classifier_model()
         callbacks = [
             keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=5, min_lr=1e-5, verbose=0),
             keras.callbacks.EarlyStopping(monitor="val_loss", patience=15, restore_best_weights=True, verbose=0)
@@ -245,6 +287,7 @@ def main():
             verbose=0,
             shuffle=True
         )
+        model = build_invariant_model(model)
         
         # 1. Evaluate on in-class test clips of Signer X
         probs_in = model.predict(X_test_in, verbose=0)
@@ -278,9 +321,8 @@ def main():
         probs_ood = model.predict(X_test_ood, verbose=0)
         preds_ood = np.argmax(probs_ood, axis=1)
         
-        # An OOD clip is successfully rejected if predicted as _OTHER_ (class 6) or target conf < threshold
-        # For default threshold 0.85:
-        max_target_conf = np.max(probs_ood[:, :6], axis=1)
+        # An OOD clip is successfully rejected if predicted as _OTHER_ (class 10) or target conf < threshold
+        max_target_conf = np.max(probs_ood[:, :REJECT_CLASS_INDEX], axis=1)
         is_rejected_85 = (preds_ood == REJECT_CLASS_INDEX) | (max_target_conf < 0.85)
         rej_count = int(np.sum(is_rejected_85))
         total_ood_signer = int(len(X_test_ood))
@@ -297,6 +339,27 @@ def main():
         all_ood_probs.extend(probs_ood)
         all_ood_preds.extend(preds_ood)
         
+        # 3. Mirror test: horizontally flipped test clips (left-handed / mirrored camera)
+        probs_in_f = model.predict(horizontal_flip(X_test_in), verbose=0)
+        preds_in_f = np.argmax(probs_in_f, axis=1)
+        correct_f = int(np.sum(preds_in_f == y_test_in))
+        probs_ood_f = model.predict(horizontal_flip(X_test_ood), verbose=0)
+        preds_ood_f = np.argmax(probs_ood_f, axis=1)
+        rej_f = int(np.sum((preds_ood_f == REJECT_CLASS_INDEX) | (np.max(probs_ood_f[:, :REJECT_CLASS_INDEX], axis=1) < 0.85)))
+        print(f"Mirrored In-Class: {correct_f}/{total_in} correct ({correct_f / total_in * 100:.2f}%) | "
+              f"Mirrored OOD Rejection: {rej_f}/{total_ood_signer}")
+        mirror_per_signer[f"signer_{test_signer}"] = {
+            "original": f"{correct_in}/{total_in}",
+            "original_accuracy": acc_in,
+            "mirrored": f"{correct_f}/{total_in}",
+            "mirrored_accuracy": float(correct_f / total_in),
+            "mirrored_ood_rejected": f"{rej_f}/{total_ood_signer}"
+        }
+        all_y_true_flip.extend(y_test_in)
+        all_y_pred_flip.extend(preds_in_f)
+        all_ood_probs_flip.extend(probs_ood_f)
+        all_ood_preds_flip.extend(preds_ood_f)
+        
     all_y_true_in = np.array(all_y_true_in)
     all_y_pred_in = np.array(all_y_pred_in)
     all_probs_in = np.array(all_probs_in)
@@ -310,11 +373,21 @@ def main():
     overall_acc = float(total_correct / total_test_clips)
     
     print("\n" + "=" * 70)
-    print(f"CLEAN 7-CLASS LOSO OVERALL IN-CLASS ACCURACY: {total_correct}/{total_test_clips} ({overall_acc * 100:.2f}%)")
+    print(f"CLEAN {NUM_CLASSES}-CLASS LOSO OVERALL IN-CLASS ACCURACY: {total_correct}/{total_test_clips} ({overall_acc * 100:.2f}%)")
+    
+    all_y_true_flip = np.array(all_y_true_flip)
+    all_y_pred_flip = np.array(all_y_pred_flip)
+    flip_correct = int(np.sum(all_y_true_flip == all_y_pred_flip))
+    flip_acc = float(flip_correct / len(all_y_true_flip))
+    all_ood_probs_flip = np.array(all_ood_probs_flip)
+    all_ood_preds_flip = np.array(all_ood_preds_flip)
+    flip_ood_rej_mask = (all_ood_preds_flip == REJECT_CLASS_INDEX) | (np.max(all_ood_probs_flip[:, :REJECT_CLASS_INDEX], axis=1) < 0.85)
+    print(f"MIRRORED (LEFT-HAND) IN-CLASS ACCURACY      : {flip_correct}/{len(all_y_true_flip)} ({flip_acc * 100:.2f}%)")
+    print(f"MIRRORED OOD REJECTION @0.85                : {int(np.sum(flip_ood_rej_mask))}/{len(flip_ood_rej_mask)}")
     print("=" * 70)
     
     precision, recall, f1, support = precision_recall_fscore_support(
-        all_y_true_in, all_y_pred_in, labels=range(6), average=None
+        all_y_true_in, all_y_pred_in, labels=range(len(target_classes)), average=None
     )
     class_metrics = {}
     for idx, cname in enumerate(target_classes):
@@ -326,19 +399,19 @@ def main():
         }
         print(f"  {cname:<15}: Precision={precision[idx]:.3f}, Recall={recall[idx]:.3f}, F1={f1[idx]:.3f}")
         
-    # Confusion Matrix (6 target classes)
-    cm_6 = confusion_matrix(all_y_true_in, all_y_pred_in, labels=range(6))
+    # Confusion Matrix (10 target classes)
+    cm_10 = confusion_matrix(all_y_true_in, all_y_pred_in, labels=range(len(target_classes)))
     cm_path = os.path.join(reports_dir, "confusion_matrix.png")
-    plot_confusion_matrix(cm_6, target_classes, cm_path)
+    plot_confusion_matrix(cm_10, target_classes, cm_path)
     
     # Train Production Model on full dataset (in-class + OOD)
-    print("\n--- Training Final Production 7-Class Model on Full Dataset ---")
+    print(f"\n--- Training Final Production {NUM_CLASSES}-Class Model on Full Dataset ---")
     X_full = np.concatenate([X, X_ood], axis=0)
     y_full = np.concatenate([y, y_ood], axis=0)
-    X_full_aug, y_full_aug = augment_training_data(X_full, y_full, multiplier=4)
+    X_full_aug, y_full_aug = augment_training_data(X_full, y_full, multiplier=4, boost_new_classes=True)
     y_full_oh = keras.utils.to_categorical(y_full_aug, num_classes=NUM_CLASSES)
     
-    final_model = build_7class_model()
+    final_model = build_classifier_model()
     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor="loss", factor=0.5, patience=5, min_lr=1e-5, verbose=0)
     final_model.fit(
         X_full_aug, y_full_oh,
@@ -348,20 +421,20 @@ def main():
         verbose=0,
         shuffle=True
     )
+    final_model = build_invariant_model(final_model)
     final_model_path = os.path.join(os.path.dirname(__file__), "final_model.h5")
     final_model.save(final_model_path)
-    print(f"Saved final 7-class model to: {final_model_path}")
+    print(f"Saved final {NUM_CLASSES}-class model to: {final_model_path}")
     
     # Threshold sweep from 0.50 to 0.95 (step 0.05) on unseen test signers
     print("\n--- Threshold Sweep on Unseen Test Signers (0.50 to 0.95) ---")
     threshold_sweep = []
     
-    # Target confidence on in-class: max probability across the 6 target classes
-    max_target_in_conf = np.max(all_probs_in[:, :6], axis=1)
-    max_target_ood_conf = np.max(all_ood_probs[:, :6], axis=1)
+    # Target confidence on in-class: max probability across the target classes
+    max_target_in_conf = np.max(all_probs_in[:, :REJECT_CLASS_INDEX], axis=1)
+    max_target_ood_conf = np.max(all_ood_probs[:, :REJECT_CLASS_INDEX], axis=1)
     
     for th in [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]:
-        # An in-class clip is accepted if argmax != _OTHER_ and max_target_conf >= th
         in_accepted_mask = (all_y_pred_in != REJECT_CLASS_INDEX) & (max_target_in_conf >= th)
         coverage = float(np.mean(in_accepted_mask))
         if np.sum(in_accepted_mask) > 0:
@@ -373,7 +446,6 @@ def main():
             accepted_cnt = 0
             correct_cnt = 0
             
-        # An OOD clip is rejected if argmax == _OTHER_ OR max_target_conf < th
         ood_rejected_mask = (all_ood_preds == REJECT_CLASS_INDEX) | (max_target_ood_conf < th)
         ood_rej_rate = float(np.mean(ood_rejected_mask))
         ood_rej_cnt = int(np.sum(ood_rejected_mask))
@@ -405,7 +477,7 @@ def main():
     s3_misclassifications = []
     for i in range(len(s3_true)):
         if s3_true[i] != s3_pred[i]:
-            pred_name = target_classes[s3_pred[i]] if s3_pred[i] < 6 else REJECT_CLASS_NAME
+            pred_name = target_classes[s3_pred[i]] if s3_pred[i] < REJECT_CLASS_INDEX else REJECT_CLASS_NAME
             s3_misclassifications.append({
                 "clip_idx": i,
                 "true_class": target_classes[s3_true[i]],
@@ -429,7 +501,7 @@ def main():
     }
     
     metrics_output = {
-        "evaluation_protocol": "7-Class Clean Nested Leave-One-Signer-Out (3 Train Signers, 1 Val Signer, 1 Unseen Test Signer)",
+        "evaluation_protocol": f"{NUM_CLASSES}-Class Clean Nested Leave-One-Signer-Out (3 Train Signers, 1 Val Signer, 1 Unseen Test Signer)",
         "num_classes": NUM_CLASSES,
         "target_classes": target_classes,
         "reject_class_index": REJECT_CLASS_INDEX,
@@ -443,6 +515,27 @@ def main():
             "ratio": f"{total_correct}/{total_test_clips}"
         },
         "per_signer_in_class_results": per_signer_results,
+        "mirror_handedness_evaluation": {
+            "description": "Clean Nested LOSO test clips evaluated as-is (Original) vs horizontally flipped x -> -x (Mirrored: left-handed signer / mirrored camera). Training uses 50% original + 50% flipped samples.",
+            "original": {
+                "correct_clips": total_correct,
+                "total_clips": total_test_clips,
+                "accuracy": overall_acc,
+                "ratio": f"{total_correct}/{total_test_clips}"
+            },
+            "mirrored": {
+                "correct_clips": flip_correct,
+                "total_clips": int(len(all_y_true_flip)),
+                "accuracy": flip_acc,
+                "ratio": f"{flip_correct}/{len(all_y_true_flip)}"
+            },
+            "mirrored_ood_rejection_at_0_85": {
+                "rejected_clips": int(np.sum(flip_ood_rej_mask)),
+                "total_ood_clips": int(len(flip_ood_rej_mask)),
+                "rejection_rate": float(np.mean(flip_ood_rej_mask))
+            },
+            "per_signer": mirror_per_signer
+        },
         "per_signer_ood_rejection_results": ood_signer_results,
         "per_class_metrics": class_metrics,
         "threshold_sweep_0_50_to_0_95": threshold_sweep,

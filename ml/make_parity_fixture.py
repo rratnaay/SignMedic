@@ -86,7 +86,7 @@ def main():
     fixture = {
         "description": "SignMedic ML Parity Fixture v2.0.0: Python vs TypeScript Browser Engine",
         "normalization_version": "2.0.0",
-        "num_classes": 7,
+        "num_classes": len(classes),
         "classes": classes,
         "tolerance": {
             "feature_max_diff": 1e-3,

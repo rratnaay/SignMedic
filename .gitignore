@@ -21,6 +21,7 @@ ml/data/raw/*
 !ml/data/raw/.gitkeep
 ml/data/own/*
 !ml/data/own/.gitkeep
+ml/data/backup*/
 ml/data/processed/
 *.npz
 !ml/final_model.h5

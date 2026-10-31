@@ -13,6 +13,10 @@ data:
     - "Tuli"
     - "Maaf"
     - "Terima kasih"
+    - "Batuk"
+    - "Demam"
+    - "Pilek"
+    - "Sesak Nafas"
 
 feature_spec:
   version: "1.0.0"

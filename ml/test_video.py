@@ -1,7 +1,7 @@
 """
 SignMedic - Video File Gesture Recognition Tester (v2.0.0)
 Tests the gesture recognition pipeline on video files.
-Supports FEATURE_SPEC v2.0.0 and 7-class output with '_OTHER_' rejection.
+Supports FEATURE_SPEC v2.0.0 and 11-class output with '_OTHER_' rejection.
 """
 
 import os
@@ -13,6 +13,7 @@ import glob
 import random
 import argparse
 import json
+import yaml
 import cv2
 import numpy as np
 import tf_keras as keras
@@ -113,7 +114,7 @@ def test_single_video(video_path, model, target_classes, threshold, show_gui=Tru
 
     seq = process_segment_v2(active_segment)
     
-    # Model inference (7 classes)
+    # Model inference (11 classes)
     probs = model.predict(seq[np.newaxis, ...], verbose=0)[0]
     all_class_names = target_classes + ["_OTHER_"]
     pred_idx = int(np.argmax(probs))
@@ -121,8 +122,9 @@ def test_single_video(video_path, model, target_classes, threshold, show_gui=Tru
     pred_class = all_class_names[pred_idx]
     
     # Acceptance check: accepted only if not _OTHER_ and target confidence >= threshold
-    max_target_conf = float(np.max(probs[:6]))
-    is_accepted = (pred_idx < 6) and (max_target_conf >= threshold)
+    n_target = len(target_classes)
+    max_target_conf = float(np.max(probs[:n_target]))
+    is_accepted = (pred_idx < n_target) and (max_target_conf >= threshold)
 
     print("\n--- HASIL PREDIKSI MODEL v2.0.0 ---")
     print(f"Kelas Terprediksi : {pred_class}")
@@ -173,7 +175,15 @@ def main():
     args = parser.parse_args()
 
     model_path = os.path.join(os.path.dirname(__file__), "final_model.h5")
-    classes = ["Air", "Makan", "Saya", "Tuli", "Maaf", "Terima kasih"]
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    
+    classes = ["Air", "Makan", "Saya", "Tuli", "Maaf", "Terima kasih", "Batuk", "Demam", "Pilek", "Sesak Nafas"]
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+            if "data" in cfg and "target_classes" in cfg["data"]:
+                classes = list(cfg["data"]["target_classes"])
+                
     threshold = 0.85
 
     model = keras.models.load_model(model_path)

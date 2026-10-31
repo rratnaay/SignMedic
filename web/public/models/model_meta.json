@@ -5,15 +5,19 @@
     "Saya",
     "Tuli",
     "Maaf",
-    "Terima kasih"
+    "Terima kasih",
+    "Batuk",
+    "Demam",
+    "Pilek",
+    "Sesak Nafas"
   ],
-  "num_classes": 7,
-  "reject_class_index": 6,
+  "num_classes": 11,
+  "reject_class_index": 10,
   "reject_class_name": "_OTHER_",
   "T": 30,
   "feature_dim": 129,
   "normalization_version": "2.0.0",
   "threshold": 0.85,
   "stability_n": 2,
-  "source": "WL-BISINDO Banten (Phase 1 Benchmark Model v2.0.0)"
+  "source": "SignMedic Clinical Triage Model v2.0.0"
 }
