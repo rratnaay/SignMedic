@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-import { Camera, Check, X, CircleDashed, ShieldAlert, ArrowRight, HelpCircle, SwitchCamera } from 'lucide-react';
+import { Camera, Check, X, CircleDashed, ShieldAlert, ArrowRight, HelpCircle, SwitchCamera, ChevronDown, ChevronUp } from 'lucide-react';
 import { PulseLine } from './PulseLine';
 import { GestureClassifier, PredictionResult } from '../ml/gestureClassifier';
 import { processSegmentV2, RawFrameHands } from '../ml/featureExtractor';
@@ -52,6 +52,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
   const [modelStatus, setModelStatus] = useState<ModelStatus>('loading');
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [isVocabOpen, setIsVocabOpen] = useState<boolean>(true);
 
   // Recognition state
   const [candidate, setCandidate] = useState<PredictionResult | null>(null);
@@ -712,26 +713,51 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       {/* 4. Supported Gestures Vocabulary List (DESIGN.md Section 7) */}
       <section
         aria-labelledby="supported-vocab-title"
-        className="rounded-card border border-edge bg-surface p-4 shadow-sm"
+        className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-sm"
       >
-        <h4 id="supported-vocab-title" className="text-sm font-bold text-ink mb-1">
-          Kosakata Gestur yang Didukung
-        </h4>
-        <p className="text-xs text-muted mb-3">
-          Tunjukkan salah satu gestur berikut di depan kamera. Gestur yang dikenali akan meminta konfirmasi Anda terlebih dahulu.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-2.5">
+          <div className="flex-1 min-w-[200px]">
+            <h4 id="supported-vocab-title" className="text-sm font-extrabold text-ink">
+              Kosakata Gestur yang Didukung ({supportedList.length})
+            </h4>
+            <p className="text-xs text-muted mt-0.5">
+              Tunjukkan salah satu gestur berikut di depan kamera. Gestur yang dikenali akan meminta konfirmasi Anda terlebih dahulu.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {supportedList.map((g) => (
-            <div
-              key={g.className}
-              className="flex flex-col gap-0.5 rounded-control border border-line bg-tint/60 p-2.5 text-left"
-            >
-              <span className="text-xs font-bold text-ink">{g.className}</span>
-              <span className="text-[11px] text-muted truncate">{g.displayLabel}</span>
-            </div>
-          ))}
+          <button
+            type="button"
+            onClick={() => setIsVocabOpen((prev) => !prev)}
+            aria-expanded={isVocabOpen}
+            aria-controls="supported-vocab-grid"
+            aria-label={isVocabOpen ? 'Sembunyikan kosakata gestur' : 'Lihat kosakata gestur'}
+            className="flex items-center gap-1 rounded-control border border-line bg-soft px-2.5 py-1 text-xs font-extrabold text-ink hover:bg-tint transition-colors shrink-0"
+          >
+            <span>{isVocabOpen ? 'Sembunyikan' : 'Lihat'}</span>
+            {isVocabOpen ? (
+              <ChevronUp className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+            )}
+          </button>
         </div>
+
+        {isVocabOpen && (
+          <div
+            id="supported-vocab-grid"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1"
+          >
+            {supportedList.map((g) => (
+              <div
+                key={g.className}
+                className="flex flex-col gap-0.5 rounded-control border border-line bg-tint/60 p-2.5 text-left"
+              >
+                <span className="text-xs font-bold text-ink">{g.className}</span>
+                <span className="text-[11px] text-muted truncate">{g.displayLabel}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
