@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { VisualBoard } from './VisualBoard';
+import { CameraGesturePanel } from './CameraGesturePanel';
 import { SymptomSummary } from './SymptomSummary';
 import { useTriage } from '../state/triageContext';
 import { LayoutGrid, Camera, MessageSquareText } from 'lucide-react';
@@ -79,24 +80,8 @@ export const PatientView: React.FC = () => {
             <VisualBoard />
           </div>
         ) : (
-          <div
-            id="panel-gesture-camera"
-            role="tabpanel"
-            aria-labelledby="tab-gesture-camera"
-            className="flex min-h-[180px] flex-col items-center justify-center rounded-card border-2 border-dashed border-line bg-soft/60 p-6 text-center"
-          >
-            <Camera className="h-8 w-8 text-muted mb-2" aria-hidden="true" />
-            <h4 className="text-sm font-extrabold text-ink">Pengenalan Gestur Kamera</h4>
-            <p className="mt-1 max-w-sm text-xs text-muted">
-              Fitur kamera akan hadir di Fase 3. Papan Visual berfungsi penuh tanpa kamera.
-            </p>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('board')}
-              className="mt-3 inline-flex min-h-[36px] items-center rounded-control bg-brand px-4 py-1.5 text-xs font-bold text-brand-ink"
-            >
-              Buka Papan Visual
-            </button>
+          <div id="panel-gesture-camera" role="tabpanel" aria-labelledby="tab-gesture-camera">
+            <CameraGesturePanel onSwitchToBoard={() => setActiveSubTab('board')} />
           </div>
         )}
 
