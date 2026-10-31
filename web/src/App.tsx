@@ -1,32 +1,50 @@
 import React, { useState } from 'react';
-import { Header } from './components/Header';
+import { Header, ViewMode } from './components/Header';
 import { PatientView } from './components/PatientView';
 import { NurseView } from './components/NurseView';
 import { TriageProvider } from './state/triageContext';
 
 export const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'patient' | 'nurse'>('patient');
+  const [viewMode, setViewMode] = useState<ViewMode>('split');
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-ink selection:bg-brand selection:text-brand-ink">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header viewMode={viewMode} setViewMode={setViewMode} />
 
-      <main className="mx-auto w-full max-w-[1560px] flex-1 px-3 py-5 sm:px-6 lg:px-8">
-        {/* Asymmetric Clinical Layout: Patient View 7 cols (~58%), Nurse View 5 cols (~42%) */}
+      <main className="mx-auto w-full max-w-[1560px] flex-1 px-3 py-4 sm:px-6">
         <div className="grid grid-cols-1 gap-5 min-[901px]:grid-cols-12 min-[901px]:gap-6">
-          <div className={activeTab === 'patient' ? 'block min-[901px]:col-span-7' : 'hidden min-[901px]:block min-[901px]:col-span-7'}>
+          {/* Patient View Container */}
+          <div
+            className={
+              viewMode === 'nurse'
+                ? 'hidden'
+                : viewMode === 'split'
+                ? 'block min-[901px]:col-span-7'
+                : 'block col-span-12 mx-auto w-full max-w-4xl'
+            }
+          >
             <PatientView />
           </div>
-          <div className={activeTab === 'nurse' ? 'block min-[901px]:col-span-5' : 'hidden min-[901px]:block min-[901px]:col-span-5'}>
+
+          {/* Nurse View Container */}
+          <div
+            className={
+              viewMode === 'patient'
+                ? 'hidden'
+                : viewMode === 'split'
+                ? 'block min-[901px]:col-span-5'
+                : 'block col-span-12 mx-auto w-full max-w-2xl'
+            }
+          >
             <NurseView />
           </div>
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-line bg-surface py-3 text-center text-xs font-semibold text-muted">
-        <div className="mx-auto max-w-[1560px] px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>SignMedic &bull; Prototipe Jembatan Komunikasi Triase BISINDO</span>
-          <span>Mode Lokal 100% di Memori RAM &bull; Bebas Jejak Klinis (Zero-Persistence)</span>
+      <footer className="mt-auto border-t border-line bg-surface py-2.5 text-center text-xs text-muted">
+        <div className="mx-auto max-w-[1560px] px-4 flex flex-col sm:flex-row items-center justify-between gap-1 text-[11px]">
+          <span>SignMedic &bull; Alat Bantu Komunikasi Triase BISINDO</span>
+          <span>Zero-Persistence (Data hanya di RAM)</span>
         </div>
       </footer>
     </div>

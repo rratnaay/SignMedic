@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom';
+import * as tf from '@tensorflow/tfjs';
+
+// Explicitly use CPU backend in Vitest/Node environment to avoid jsdom WebGL canvas warnings
+tf.setBackend('cpu');
 
 // Polyfill BroadcastChannel for Vitest jsdom environment
 if (typeof globalThis.BroadcastChannel === 'undefined') {
