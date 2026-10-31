@@ -1,41 +1,29 @@
 # Panduan Instalasi dan Menjalankan SignMedic (INSTALL.md)
 
-Dokumen ini berisi panduan langkah demi langkah bagi pengembang atau anggota tim yang baru melakukan *clone* repositori SignMedic.
+Dokumen ini berisi panduan teknis langkah demi langkah untuk menyiapkan lingkungan pengembangan, menjalankan aplikasi web SignMedic, atau melatih ulang model Machine Learning.
 
-Pilih skenario instalasi sesuai kebutuhan Anda:
-* **Skenario A:** Menjalankan aplikasi web (Frontend, Papan Visual, Pengujian UI, Demo).
+Pilih skenario panduan sesuai dengan kebutuhan Anda:
+* **Skenario A:** Menjalankan aplikasi web (Frontend, Papan Visual, Kamera BISINDO, Demo Triase).
 * **Skenario B:** Mengembangkan atau melatih ulang model Machine Learning (Python).
-
---
-
-## Skenario A: Menjalankan Aplikasi Web (Frontend / Demo)
-
-Jika Anda hanya ingin menjalankan atau menguji aplikasi web, Anda **TIDAK PERLU menginstal Python atau mengunduh dataset video**. Model TensorFlow.js dan MediaPipe task yang siap pakai sudah tersimpan di `web/public/models/` dan terlacak di Git.
-
-### Opsi Alternatif: Instalasi 100% Offline via Harddisk (Tanpa Internet)
-
-Jika koneksi internet lambat atau kuota terbatas, gunakan kit offline yang sudah disiapkan di harddisk eksternal:
-1. Colokkan harddisk eksternal (yang berisi folder `SignMedic_Offline_Packages`).
-2. Masuk ke folder `ml/` di laptop Anda.
-3. Jalankan skrip:
-   ```cmd
-   PASANG_OFFLINE.bat
-   ```
-   *(Atau klik 2x berkas `PASANG_OFFLINE.bat` dari File Explorer).*
-4. Skrip akan otomatis mendeteksi drive harddisk eksternal, membuat `.venv`, menyalin seluruh pustaka (TensorFlow, MediaPipe, OpenCV), dan menyalin video dataset tanpa kuota internet sama sekali.
+* **Skenario C:** Melakukan *deployment* ke Vercel.
 
 ---
 
+## Skenario A: Menjalankan Aplikasi Web (Frontend & Demo)
+
+Jika Anda hanya ingin menjalankan atau menguji aplikasi web, Anda **tidak perlu menginstal Python atau mengunduh dataset video mentah**. Seluruh model TensorFlow.js dan aset MediaPipe yang siap pakai sudah tersedia di dalam direktori `web/public/models/`.
+
 ### 1. Prasyarat Sistem
-* Git
-* Node.js versi 18 atau 20 (LTS)
-* npm (otomatis terpasang bersama Node.js)
+* **Node.js:** Versi 18.x atau 20.x (LTS direkomendasikan).
+* **npm:** Versi 9.x atau yang lebih baru (terpasang otomatis bersama Node.js).
+* **Git:** Versi 2.30+.
+* **Peramban Web:** Google Chrome, Microsoft Edge, atau Safari versi modern yang mendukung WebGL, WebAssembly, dan WebRTC.
 
 ### 2. Langkah Instalasi
 
 1. **Clone Repositori:**
    ```bash
-   git clone <URL_REPOSITORI_SIGNMEDIC>
+   git clone https://github.com/rratnaay/SignMedic.git
    cd SignMedic
    ```
 
@@ -44,47 +32,42 @@ Jika koneksi internet lambat atau kuota terbatas, gunakan kit offline yang sudah
    cd web
    npm install
    ```
+   *(Script `postinstall` akan otomatis menyalin aset WebAssembly MediaPipe ke folder `web/public/wasm/`)*.
 
 3. **Jalankan Server Pengembangan Lokal:**
    ```bash
    npm run dev
    ```
-   Buka peramban (browser) di alamat yang muncul di terminal (biasanya `http://localhost:5173`).
+   Buka peramban di alamat lokal yang tertera di terminal (biasanya `http://localhost:5173`).
 
-4. **Menjalankan Pengujian Unit & Paritas (Opsional):**
+4. **Menjalankan Pengujian (Testing):**
+   Untuk memverifikasi keutuhan logika triase, ekstraksi fitur matematis, dan privasi client-side:
    ```bash
    npm run test
    ```
+   Semua 37 skenario pengujian unit dan integrasi akan dieksekusi menggunakan Vitest.
+
+5. **Membangun Berkas Produksi (Production Build):**
+   ```bash
+   npm run build
+   ```
+   Hasil kompilasi siap saji akan dibuat di direktori `web/dist/`.
 
 ---
 
 ## Skenario B: Mengembangkan / Melatih Ulang Model ML (Python)
 
-Jika Anda bertugas di bagian Machine Learning untuk mengolah data, melatih ulang model dengan Leave-One-Signer-Out (LOSO), atau menguji video rekaman secara offline di Python:
-
-### Opsi Alternatif: Instalasi 100% Offline via Harddisk (Tanpa Internet)
-
-Jika koneksi internet lambat atau kuota terbatas, gunakan kit offline yang sudah disiapkan di harddisk eksternal:
-1. Colokkan harddisk eksternal (yang berisi folder `SignMedic_Offline_Packages`).
-2. Masuk ke folder `ml/` di laptop Anda.
-3. Jalankan skrip:
-   ```cmd
-   PASANG_OFFLINE.bat
-   ```
-   *(Atau klik 2x berkas `PASANG_OFFLINE.bat` dari File Explorer).*
-4. Skrip akan otomatis mendeteksi drive harddisk eksternal, membuat `.venv`, menyalin seluruh pustaka (TensorFlow, MediaPipe, OpenCV), dan menyalin video dataset tanpa kuota internet sama sekali.
-
----
+Gunakan skenario ini jika Anda bertugas di bagian Machine Learning untuk mengolah data video gestur, melatih ulang model dengan validasi *Leave-One-Signer-Out* (LOSO), atau menguji coba deteksi gestur menggunakan Python.
 
 ### 1. Prasyarat Sistem
-* Python versi 3.10 atau 3.11 (Direkomendasikan Python 3.11.x)
-* Git
+* **Python:** Versi 3.10 atau 3.11 (Python 3.11.x direkomendasikan).
+* **Kamera / Webcam:** Diperlukan jika ingin menguji coba inferensi langsung di desktop via OpenCV (`test_webcam.py`).
+* **Git:** Versi 2.30+.
 
-### 2. Langkah Instalasi
+### 2. Langkah Instalasi Lingkungan Virtual
 
-1. **Clone Repositori dan Masuk ke Folder `ml`:**
+1. **Masuk ke Folder `ml`:**
    ```bash
-   git clone <URL_REPOSITORI_SIGNMEDIC>
    cd SignMedic/ml
    ```
 
@@ -107,80 +90,61 @@ Jika koneksi internet lambat atau kuota terbatas, gunakan kit offline yang sudah
      source .venv/bin/activate
      ```
 
-4. **Pasang Dependensi Python:**
+4. **Pasang Dependensi Pustaka:**
    ```bash
    pip install --upgrade pip
    pip install -r requirements.txt
    ```
 
-5. **Verifikasi Berkas Model MediaPipe:**
-   Pastikan berkas `ml/hand_landmarker.task` ada. Jika belum ada, salin dari direktori web:
+5. **Pastikan Model MediaPipe Tersedia:**
+   Pastikan berkas `ml/hand_landmarker.task` ada di folder `ml/`. Jika belum ada, salin dari folder web:
    ```bash
-   # Dari direktori root SignMedic
-   cp web/public/models/hand_landmarker.task ml/hand_landmarker.task
+   # Di Windows PowerShell:
+   Copy-Item ..\web\public\models\hand_landmarker.task -Destination .\hand_landmarker.task
    ```
 
-### 3. Menyiapkan Dataset Video (Kaggle)
-Karena berkas video mentah berukuran besar, direktori `ml/data/raw/` diabaikan oleh `.gitignore`.
-1. Unduh dataset video **WL-BISINDO** dari Kaggle.
-2. Ekstrak seluruh berkas video `.mp4` ke dalam folder `ml/data/raw/`.
-   Format nama berkas yang diharapkan: `signer<ID>_label<LABEL>_sample<SAMPLE>.mp4`.
+### 3. Menyiapkan Dataset Video
+1. Letakkan seluruh berkas rekaman video gestur BISINDO format `.mp4` ke dalam folder `ml/data/raw/`.
+2. Format penamaan berkas yang didukung:
+   `signer<ID>_label<LABEL>_sample<SAMPLE>.mp4`
 
-### 4. Menjalankan Alur Kerja ML
+### 4. Menjalankan Pipeline Machine Learning
 
-* **Ekstraksi Landmark (FEATURE_SPEC v2.0.0):**
-  ```bash
-  python extract_landmarks.py
-  ```
-  *(Menghasilkan dataset terproses di `ml/data/processed/dataset.npz`)*
+1. **Ekstraksi Landmark (FEATURE_SPEC v2.0.0):**
+   ```bash
+   python extract_landmarks.py
+   ```
+   Menghasilkan data terproses $T=30 \times 129$ fitur di `ml/data/processed/dataset.npz`.
 
-* **Pelatihan Model & Evaluasi Clean Nested LOSO:**
-  ```bash
-  python train.py
-  ```
-  *(Model Keras tersimpan di `ml/final_model.h5`, laporan metrik tersimpan di `ml/reports/metrics.json` dan `ml/reports/confusion_matrix.png`)*
+2. **Pelatihan & Evaluasi Model (Clean Nested LOSO):**
+   ```bash
+   python train.py
+   ```
+   Model Keras tersimpan di `ml/final_model.h5`, laporan metrik dan matriks konfusi tersimpan di `ml/reports/`.
 
-* **Ekspor Model ke Format TensorFlow.js untuk Web:**
-  ```bash
-  python export_tfjs.py
-  ```
-  *(Model web diperbarui di `web/public/models/`)*
+3. **Ekspor Model ke Format TensorFlow.js untuk Web:**
+   ```bash
+   python export_tfjs.py
+   ```
+   Model siap pakai otomatis diperbarui di direktori `web/public/models/`.
 
-* **Membuat Uji Paritas Fitur ML-Web:**
-  ```bash
-  python make_parity_fixture.py
-  ```
-  *(Memperbarui `ml/parity_fixture.json` dan `web/src/__tests__/parity_fixture.json`)*
-
-* **Menguji Coba Model pada Berkas Video Tertentu:**
-  ```bash
-  # Uji kata tertentu secara acak
-  python test_video.py --class_name "Makan"
-
-  # Uji berkas video spesifik
-  python test_video.py --video "data/raw/signer0_label7_sample1.mp4"
-  ```
+4. **Uji Coba Inferensi pada Berkas Video Tertentu:**
+   ```bash
+   python test_video.py --class_name "Makan"
+   ```
 
 ---
 
-## Ringkasan Struktur Folder Utama
+## Skenario C: Deployment ke Vercel
 
-```text
-SignMedic/
-  ├── INSTALL.md            <- Panduan instalasi ini
-  ├── README.md             <- Deskripsi umum & arsitektur proyek
-  ├── DESIGN.md             <- Acuan visual, tata letak, dan perilaku UI
-  ├── AGENTS.md             <- Petunjuk dan aturan untuk AI coding agent
-  ├── ml/                   <- Sumber daya Machine Learning (Python)
-  │   ├── FEATURE_SPEC.md   <- Spesifikasi matematis ekstraksi fitur
-  │   ├── extract_landmarks.py
-  │   ├── train.py
-  │   ├── export_tfjs.py
-  │   ├── test_video.py
-  │   ├── requirements.txt
-  │   └── reports/          <- Hasil metrik akurasi & matriks konfusi
-  └── web/                  <- Sumber daya aplikasi Web (React + TS + TF.js)
-      ├── public/models/    <- Model TF.js siap pakai
-      ├── shared/           <- Katalog pesan triase (catalog.json)
-      └── src/              <- Komponen UI, state reducer, & test
-```
+Aplikasi web SignMedic telah dilengkapi dengan konfigurasi SPA rewrite dan *direct WebRTC P2P sync* sehingga siap dideploy ke Vercel:
+
+1. Buat proyek baru di dashboard [Vercel](https://vercel.com/) dan tautkan dengan repositori GitHub Anda.
+2. Pada menu konfigurasi proyek:
+   * **Framework Preset:** `Vite`
+   * **Root Directory:** Klik *Edit* lalu pilih direktori `web`
+   * **Build Command:** `npm run build`
+   * **Output Directory:** `dist`
+   * **Install Command:** `npm install`
+3. Klik tombol **Deploy**.
+4. Setelah proses build selesai (~1 menit), aplikasi akan langsung aktif dan otomatis berjalan di protokol HTTPS yang aman untuk akses kamera dan mikrofon.

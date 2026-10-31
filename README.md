@@ -1,112 +1,160 @@
-# SignMedic (Prototipe Jembatan Komunikasi Triase BISINDO)
+# SignMedic: Jembatan Komunikasi Triase BISINDO
 
-> **PERNYATAAN BATASAN:**  
-> Aplikasi ini adalah **alat bantu komunikasi awal** untuk memfasilitasi komunikasi antara pasien Tuli pengguna BISINDO dan tenaga kesehatan di meja triase. Aplikasi ini **BUKAN perangkat medis** dan **TIDAK melakukan diagnosis, penentuan kegawatan klinis, atau pemberian saran terapi**.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react)](https://react.dev/)
+[![TensorFlow.js](https://img.shields.io/badge/TensorFlow.js-4.22-FF6F00.svg?logo=tensorflow)](https://www.tensorflow.org/js)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Tasks_Vision_1.2-0078D4.svg)](https://developers.google.com/mediapipe)
+[![WebRTC P2P](https://img.shields.io/badge/WebRTC-PeerJS_P2P-success.svg)](https://peerjs.com/)
+[![Tests](https://img.shields.io/badge/Vitest-37%2F37_Passed-brightgreen.svg)](https://vitest.dev/)
+
+> [!IMPORTANT]
+> **PERNYATAAN BATASAN KLINIS (CLINICAL DISCLAIMER):**  
+> SignMedic dirancang sebagai **alat bantu komunikasi awal** untuk menjembatani interaksi antara pasien Tuli pengguna Bahasa Isyarat Indonesia (BISINDO) dan tenaga medis di instalasi gawat darurat (IGD). Aplikasi ini **BUKAN perangkat medis penegak diagnosis** dan **TIDAK memberikan rekomendasi terapi atau keputusan triase otomatis**. Seluruh keputusan medis tetap berada di bawah wewenang tenaga kesehatan yang bertugas.
 
 ---
 
-## 1. Struktur Repositori
+## 1. Latar Belakang & Masalah
+Dalam situasi gawat darurat, komunikasi yang cepat dan akurat merupakan faktor penentu keselamatan pasien. Pasien Tuli kerap menghadapi hambatan komunikasi yang signifikan di meja triase ketika petugas tidak menguasai BISINDO, sementara komunikasi tertulis sering kali memakan waktu atau tidak optimal saat kondisi darurat.
+
+SignMedic menghadirkan solusi komunikasi multimodal berbasis web yang ramah pengguna, berstandar privasi tinggi, dan dapat digunakan langsung dari perangkat apa pun (laptop, tablet, maupun smartphone).
+
+---
+
+## 2. Fitur Unggulan
+
+### A. Papan Komunikasi Visual Universal (*Primary Fail-Safe*)
+* Berisi katalog keluhan dan kebutuhan triase terstandar (Sakit Kepala, Dada, Perut, Demam, Alergi, Sesak Nafas, dll.).
+* Bekerja 100% mandiri tanpa ketergantungan pada kamera, mikrofon, maupun koneksi internet.
+* Pasien dapat menyusun ringkasan keluhan dengan satu sentuhan dan melakukan konfirmasi eksplisit sebelum data dikirimkan ke petugas.
+
+### B. Pengenalan Gestur BISINDO In-Browser (11 Kelas Klinis)
+* Mendeteksi 10 kelas kosakata klinis darurat (*Air, Makan, Saya, Tuli, Maaf, Terima kasih, Batuk, Demam, Pilek, Sesak Nafas*) ditambah 1 kelas penolakan gerakan di luar konteks (*_OTHER_*).
+* **100% In-Memory:** Pemrosesan landmark MediaPipe dan inferensi model GRU (TF.js) berjalan sepenuhnya di memori peramban pengguna. Tidak ada frame video atau koordinat yang dikirim ke server cloud (*Privacy by Design*).
+* Dilengkapi filter penstabilan probabilitas *Exponential Moving Average* (EMA) dan ambang batas stabilitas temporal ($N=2$).
+* Antarmuka kamera responsif adaptif: rasio vertikal portrait (3:4) pada smartphone dan widescreen (16:10) pada komputer desktop/laptop.
+
+### C. Sinkronisasi Multi-Device Real-Time (WebRTC Peer-to-Peer)
+* Menghubungkan layar petugas (laptop/PC) dengan layar pasien (smartphone) secara *real-time*.
+* Petugas cukup membuka sesi $\rightarrow$ sistem menerbitkan PIN 6-angka dan QR Code $\rightarrow$ pasien memindai dengan HP untuk terhubung langsung secara *peer-to-peer* (P2P).
+* Menggunakan saluran data terenkripsi *end-to-end* (E2EE) tanpa memerlukan server WebSocket persisten di hosting cloud.
+
+### D. Transkripsi Suara ke Teks Bahasa Indonesia (*Speech-to-Text*)
+* Memanfaatkan *Web Speech API* beraksen bahasa Indonesia (`id-ID`).
+* Instruksi atau pertanyaan dokter/perawat langsung tertranskripsi secara langsung ke layar pasien dengan tipografi besar berbobot tinggi yang mudah dibaca.
+
+---
+
+## 3. Arsitektur Proyek
 
 ```text
-signmedic/
-  ml/
-    extract_landmarks.py      # Ekstraksi koordinat MediaPipe dari video (FEATURE_SPEC)
-    record_samples.py         # Alat bantu rekam sampel landmark lokal
-    train.py                  # Pelatihan model (Leave-One-Signer-Out) & evaluasi
-    export_tfjs.py            # Konversi model ke format TensorFlow.js
-    make_parity_fixture.py    # Pembuat fixture JSON untuk uji paritas ML-Web
-    config.yaml               # Konfigurasi pipeline ML
-    FEATURE_SPEC.md           # Spesifikasi tunggal fitur & normalisasi
-    data/                     # [Diabaikan git] data/raw (video), data/own (rekaman)
-    reports/                  # Laporan akurasi, confusion matrix, metrik
-  web/
-    src/                      # Komponen React, hooks, state reducer, parity tests
-    public/models/            # Hasil ekspor TF.js (model.json, weights, model_meta.json)
-    api/refine.ts             # Vercel serverless function (Gemini sentence refiner)
-    shared/catalog.json       # Katalog pesan visual triase universal
-    .env.example              # Contoh variabel lingkungan
-  ASSUMPTIONS.md              # Catatan asumsi teknis & penyederhanaan desain
-  README.md                   # Dokumentasi cara menjalankan proyek
+SignMedic/
+├── ml/                           # Sumber Daya & Riset Machine Learning (Python)
+│   ├── config.yaml               # Konfigurasi pipeline & hiperparameter model
+│   ├── FEATURE_SPEC.md           # Spesifikasi matematis normalisasi fitur v2.0.0
+│   ├── extract_landmarks.py      # Ekstraksi koordinat MediaPipe dari dataset video
+│   ├── train.py                  # Pelatihan Conv1D-GRU dengan Leave-One-Signer-Out (LOSO)
+│   ├── export_tfjs.py            # Konversi bobot model Keras ke format TensorFlow.js
+│   ├── make_parity_fixture.py    # Generator fixture pengujian paritas numerik ML-Web
+│   ├── test_video.py             # Verifikasi inferensi pada file rekaman video
+│   ├── test_webcam.py            # Uji coba inferensi real-time webcam di Python
+│   ├── requirements.txt          # Daftar dependensi pustaka Python
+│   └── reports/                  # Laporan metrik evaluasi & matriks konfusi
+│
+├── web/                          # Aplikasi Web Produksi (Vite + React + TypeScript)
+│   ├── public/
+│   │   ├── models/               # Bobot model TF.js & model MediaPipe task
+│   │   └── wasm/                 # Aset biner WebAssembly MediaPipe Vision
+│   ├── shared/
+│   │   └── catalog.json          # Katalog resmi pesan triase visual
+│   ├── src/
+│   │   ├── components/           # Komponen UI (CameraGesturePanel, Header, VisualBoard, dll.)
+│   │   ├── ml/                   # Implementasi fitur extractor & gesture classifier (TF.js)
+│   │   ├── state/                # State management triase & sinkronisasi WebRTC P2P
+│   │   └── __tests__/            # Rangkaian pengujian unit, paritas numerik, dan alur triase
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   └── vite.config.ts
+│
+├── vercel.json                   # Konfigurasi deployment & SPA routing Vercel
+├── DESIGN.md                     # Pedoman visual, tipografi, dan aksesibilitas
+├── INSTALL.md                    # Panduan langkah demi langkah instalasi & eksekusi
+└── README.md                     # Dokumentasi utama proyek
 ```
 
 ---
 
-## 2. Cara Menjalankan Bagian ML (Python Offline)
+## 4. Cara Menjalankan Aplikasi
 
-> **Catatan:** Python **hanya** digunakan secara offline di komputer pengembang untuk melatih dan mengekspor model. Python **tidak dijalankan** saat aplikasi web beroperasi.
+### Skenario 1: Menjalankan Aplikasi Web (Frontend & Demo)
+Aplikasi web sudah dilengkapi dengan model AI bawaan yang telah diekspor. Anda **tidak perlu memasang Python** untuk menjalankan web.
 
-1. **Prasyarat:**
-   * Python 3.10 atau 3.11.
-
-2. **Setup Lingkungan Virtual:**
-   ```bash
-   cd ml
-   python -m venv .venv
-   # Windows:
-   .venv\Scripts\activate
-   # Linux/macOS:
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-3. **Alur Kerja Pipeline:**
-   * **Ekstraksi Landmark:** Tempatkan dataset video di `ml/data/raw/`, lalu jalankan:
-     ```bash
-     python extract_landmarks.py
-     ```
-   * **Training & Evaluasi:**
-     ```bash
-     python train.py
-     ```
-     *(Hasil metrik dan confusion matrix akan tersimpan di `ml/reports/`).*
-   * **Ekspor ke TensorFlow.js:**
-     ```bash
-     python export_tfjs.py
-     ```
-     *(Model tersimpan di `web/public/models/`).*
-   * **Buat Fixture Paritas:**
-     ```bash
-     python make_parity_fixture.py
-     ```
-
----
-
-## 3. Cara Menjalankan Bagian Web (React + Vite + TypeScript)
-
-1. **Prasyarat:**
-   * Node.js v18+ (direkomendasikan v20+) dan npm.
-
-2. **Instalasi Dependensi:**
+1. **Prasyarat:** Node.js versi 18 atau 20 (LTS).
+2. **Instalasi:**
    ```bash
    cd web
    npm install
    ```
-
-3. **Menjalankan Server Pengembangan:**
+3. **Jalankan Server Lokal:**
    ```bash
    npm run dev
    ```
-   Aplikasi dapat diakses di `http://localhost:5173`.
-
-4. **Menjalankan Tes Unit & Paritas (Vitest):**
+   Buka peramban di `http://localhost:5173`.
+4. **Menjalankan Pengujian (37/37 Unit Tests):**
    ```bash
    npm run test
    ```
 
----
+### Skenario 2: Melatih Ulang Model Machine Learning (Python)
+Gunakan opsi ini jika Anda ingin mengekstrak video baru, melatih model dengan validasi LOSO, atau memperbarui model TF.js:
 
-## 4. Variabel Lingkungan (Opsional untuk Fitur Gemini)
+1. **Prasyarat:** Python versi 3.10 atau 3.11.
+2. **Setup Lingkungan Virtual:**
+   ```bash
+   cd ml
+   python -m venv .venv
 
-Salin `web/.env.example` ke `web/.env.local`:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-1.5-flash
-```
+   # Di Windows:
+   .\.venv\Scripts\activate
+   # Di Linux / macOS:
+   source .venv/bin/activate
+
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+3. **Ekstraksi & Training:**
+   ```bash
+   # Ekstrak fitur dari video raw (FEATURE_SPEC v2.0.0)
+   python extract_landmarks.py
+
+   # Latih model Keras dengan evaluasi LOSO
+   python train.py
+
+   # Ekspor model ke TensorFlow.js untuk web
+   python export_tfjs.py
+   ```
 
 ---
 
 ## 5. Prinsip Keamanan & Privasi
 
-1. **100% Client-Side:** Webcam dan inferensi gestur sepenuhnya berjalan di memori browser pengguna melalui WebAssembly dan WebGL. Tidak ada video atau koordinat yang dikirim ke server.
-2. **Tanpa Penyimpanan Data:** Semua data triase hanya ada di state memori React. Menekan "Akhiri Sesi" akan langsung menghapus seluruh data sesi.
-3. **Papan Visual Mandiri:** Seluruh fitur papan visual triase berfungsi penuh tanpa kamera, mikrofon, atau koneksi internet.
+1. **Zero Data Transmission (Video & Landmark):** Frame webcam dan koordinat persendian tangan diproses seketika di memori RAM peramban lokal. Tidak ada video yang direkam, disimpan ke media penyimpanan permanen, atau diunggah ke internet.
+2. **Komunikasi Langsung Antar-Perangkat (E2EE P2P):** Sinkronisasi antara layar petugas dan layar pasien berjalan melalui saluran data WebRTC langsung antar-browser tanpa perantara penyimpanan cloud pihak ketiga.
+3. **Penghapusan Data Seketika:** Seluruh catatan keluhan triase bersifat sementara (*ephemeral*). Menekan tombol *"Akhiri Sesi"* akan membersihkan seluruh riwayat komunikasi dari memori aplikasi.
+
+---
+
+## 6. Tim Pengembang
+
+Proyek ini dikembangkan dan dirancang oleh:
+
+* **Satu**
+* **Dua**
+* **Tiga**
+* **Aamin**
+
+---
+
+## 7. Lisensi
+
+Hak Cipta &copy; 2026 Tim SignMedic. Dikembangkan untuk kemanusiaan, inklusivitas layanan kesehatan, dan aksesibilitas komunikasi pasien Tuli di Indonesia.
