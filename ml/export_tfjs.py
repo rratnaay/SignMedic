@@ -1,5 +1,5 @@
 """
-Export trained 7-class Keras gesture model to TensorFlow.js format and JSON fallback.
+Export trained 11-class Keras gesture model to TensorFlow.js format and JSON fallback.
 Target directory: web/public/models/
 FEATURE_SPEC: Version 2.0.0
 """
@@ -10,6 +10,7 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import json
 import shutil
+import yaml
 import numpy as np
 import tf_keras as keras
 
@@ -82,7 +83,7 @@ def export_model_to_tfjs(model, output_dir, meta_info):
 
 def main():
     model_path = os.path.join(os.path.dirname(__file__), "final_model.h5")
-    metrics_path = os.path.join(os.path.dirname(__file__), "reports", "metrics.json")
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web", "public", "models"))
     
     if not os.path.exists(model_path):
@@ -91,17 +92,24 @@ def main():
     print(f"Loading trained model from {model_path}...")
     model = keras.models.load_model(model_path)
     
+    target_classes = ["Air", "Makan", "Saya", "Tuli", "Maaf", "Terima kasih", "Batuk", "Demam", "Pilek", "Sesak Nafas"]
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+            if "data" in cfg and "target_classes" in cfg["data"]:
+                target_classes = list(cfg["data"]["target_classes"])
+                
     meta_info = {
-        "classes": ["Air", "Makan", "Saya", "Tuli", "Maaf", "Terima kasih"],
-        "num_classes": 7,
-        "reject_class_index": 6,
+        "classes": target_classes,
+        "num_classes": len(target_classes) + 1,
+        "reject_class_index": len(target_classes),
         "reject_class_name": "_OTHER_",
         "T": 30,
         "feature_dim": 129,
         "normalization_version": "2.0.0",
         "threshold": 0.85,
         "stability_n": 2,
-        "source": "WL-BISINDO Banten (Phase 1 Benchmark Model v2.0.0)"
+        "source": "SignMedic Clinical Triage Model v2.0.0"
     }
     
     print("=" * 60)

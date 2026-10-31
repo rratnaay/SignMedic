@@ -5,7 +5,7 @@
   "modelTopology": {
     "class_name": "Functional",
     "config": {
-      "name": "signmedic_7class_mirror_invariant",
+      "name": "signmedic_11class_mirror_invariant",
       "trainable": true,
       "layers": [
         {
@@ -80,7 +80,7 @@
           "module": "tf_keras.src.engine.functional",
           "class_name": "Functional",
           "config": {
-            "name": "signmedic_7class_classifier",
+            "name": "signmedic_classifier",
             "trainable": true,
             "layers": [
               {
@@ -578,7 +578,7 @@
                   "name": "prediction",
                   "trainable": true,
                   "dtype": "float32",
-                  "units": 7,
+                  "units": 11,
                   "activation": "softmax",
                   "use_bias": true,
                   "kernel_initializer": {
@@ -644,7 +644,7 @@
               129
             ]
           },
-          "name": "signmedic_7class_classifier",
+          "name": "signmedic_classifier",
           "inbound_nodes": [
             [
               [
@@ -677,11 +677,11 @@
             "input_shape": [
               [
                 null,
-                7
+                11
               ],
               [
                 null,
-                7
+                11
               ]
             ]
           },
@@ -689,13 +689,13 @@
           "inbound_nodes": [
             [
               [
-                "signmedic_7class_classifier",
+                "signmedic_classifier",
                 1,
                 0,
                 {}
               ],
               [
-                "signmedic_7class_classifier",
+                "signmedic_classifier",
                 2,
                 0,
                 {}
@@ -867,14 +867,14 @@
           "name": "prediction/kernel",
           "shape": [
             64,
-            7
+            11
           ],
           "dtype": "float32"
         },
         {
           "name": "prediction/bias",
           "shape": [
-            7
+            11
           ],
           "dtype": "float32"
         }

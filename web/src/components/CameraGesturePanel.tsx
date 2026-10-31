@@ -39,6 +39,12 @@ const HAND_CONNECTIONS = [
   [17, 18], [18, 19], [19, 20],
 ];
 
+// Sliding window & cadence configuration for rapid real-time inference (Sweet Spot)
+const MAX_BUFFER = 45; // ~1.5s at 30fps: captures natural BISINDO gesture duration
+const MIN_ACTIVE_FRAMES = 30; // ~1.0s: minimum movement required before first evaluation (stroke peak)
+const CADENCE_FRAMES = 12; // ~400ms: rolling evaluation interval
+const COOLDOWN_MS = 1200; // 1.2s cooldown after accepting a candidate to prevent duplicate spam
+
 export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitchToBoard }) => {
   const { dispatch } = useTriage();
 
@@ -58,10 +64,18 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const classifierRef = useRef<GestureClassifier | null>(null);
 
-  // Live buffering: accumulates frames when hand is detected
+  // Fast rolling buffer & cadence refs
   const bufferRef = useRef<RawFrameHands[]>([]);
   const absentCounterRef = useRef<number>(0);
   const isInferringRef = useRef<boolean>(false);
+  const frameStepRef = useRef<number>(0);
+  const lastAcceptedTimeRef = useRef<number>(0);
+  const wasCoolingDownRef = useRef<boolean>(false);
+  const candidateRef = useRef<PredictionResult | null>(null);
+
+  useEffect(() => {
+    candidateRef.current = candidate;
+  }, [candidate]);
 
   // 1. Initialize classifier and HandLandmarker
   useEffect(() => {
@@ -140,6 +154,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
     }
 
     setCameraStatus('requesting');
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -155,27 +170,12 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        await videoRef.current.play();
       }
     } catch (err) {
       console.warn('Camera access denied or unavailable:', err);
       setCameraStatus('denied');
     }
   };
-
-  // Attach stream to video element whenever stream or cameraStatus changes
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video && stream) {
-      video.srcObject = stream;
-      const playPromise = video.play();
-      if (playPromise !== undefined && typeof playPromise.catch === 'function') {
-        playPromise.catch((err) => {
-          console.warn('Playback error (retrying on user interaction):', err);
-        });
-      }
-    }
-  }, [stream, cameraStatus]);
 
   // Stop camera stream when unmounted
   useEffect(() => {
@@ -191,7 +191,7 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
   // 3. Inference trigger for a captured hand segment
   const runSegmentInference = useCallback(async (segment: RawFrameHands[]) => {
-    if (!classifierRef.current || isInferringRef.current) return;
+    if (!classifierRef.current || isInferringRef.current || candidateRef.current) return;
     if (segment.length < 5) return; // Ignore very brief accidental flashes
 
     isInferringRef.current = true;
@@ -201,7 +201,12 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
 
       if (result.accepted) {
         setCandidate(result);
+        candidateRef.current = result;
         setFeedbackNotice(null);
+        // Cooldown & streak reset:
+        lastAcceptedTimeRef.current = performance.now();
+        classifierRef.current.resetStability();
+        bufferRef.current = [];
       } else {
         if (result.feedbackMessage) {
           setFeedbackNotice(result.feedbackMessage);
@@ -258,13 +263,31 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
                 hand.map((lm) => ({ x: lm.x, y: lm.y, z: lm.z }))
               );
 
-              // Accumulate in buffer (up to 90 frames max)
-              if (bufferRef.current.length < 90) {
-                bufferRef.current.push(frameHands);
-              } else {
-                // Buffer full: process segment and reset
-                const segment = [...bufferRef.current];
+              // Accumulate in sliding buffer (up to MAX_BUFFER frames)
+              bufferRef.current.push(frameHands);
+              if (bufferRef.current.length > MAX_BUFFER) {
+                bufferRef.current.shift(); // FIFO rolling window
+              }
+
+              frameStepRef.current += 1;
+              const now = performance.now();
+              const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
+
+              // Reset buffer and EMA probability smoothing when cooldown ends
+              if (wasCoolingDownRef.current && !isCoolingDown) {
                 bufferRef.current = [];
+                classifierRef.current?.resetStability();
+              }
+              wasCoolingDownRef.current = isCoolingDown;
+
+              // Sliding cadence inference: evaluate every CADENCE_FRAMES once buffer has minimal frames
+              if (
+                !isCoolingDown &&
+                !candidateRef.current &&
+                bufferRef.current.length >= MIN_ACTIVE_FRAMES &&
+                frameStepRef.current % CADENCE_FRAMES === 0
+              ) {
+                const segment = [...bufferRef.current];
                 runSegmentInference(segment);
               }
 
@@ -300,13 +323,21 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
               // No hand detected in this frame
               if (bufferRef.current.length > 0) {
                 absentCounterRef.current += 1;
-                // When hands are absent for >= 5 consecutive frames, finalize segment
+                // When hands are absent for >= 5 consecutive frames, check if final segment should be evaluated
                 if (absentCounterRef.current >= 5) {
-                  const segment = [...bufferRef.current];
+                  const now = performance.now();
+                  const isCoolingDown = now - lastAcceptedTimeRef.current < COOLDOWN_MS;
+                  if (!isCoolingDown && !candidateRef.current && bufferRef.current.length >= MIN_ACTIVE_FRAMES) {
+                    const segment = [...bufferRef.current];
+                    runSegmentInference(segment);
+                  }
                   bufferRef.current = [];
                   absentCounterRef.current = 0;
-                  runSegmentInference(segment);
+                  classifierRef.current?.resetStability();
                 }
+              } else {
+                // Hands remain absent (idle): ensure stability and smoothing stay clean
+                classifierRef.current?.resetStability();
               }
             }
           }
@@ -333,13 +364,19 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
       dispatch({ type: 'SELECT_ITEM', payload: item.id });
     }
     setCandidate(null);
+    candidateRef.current = null;
     setFeedbackNotice(null);
+    lastAcceptedTimeRef.current = performance.now();
+    bufferRef.current = [];
     classifierRef.current?.resetStability();
   };
 
   const handleCancelCandidate = () => {
     setCandidate(null);
+    candidateRef.current = null;
     setFeedbackNotice(null);
+    lastAcceptedTimeRef.current = performance.now();
+    bufferRef.current = [];
     classifierRef.current?.resetStability();
   };
 
@@ -537,28 +574,26 @@ export const CameraGesturePanel: React.FC<CameraGesturePanelProps> = ({ onSwitch
         </section>
       )}
 
-      {/* 4. Supported Gestures Vocabulary List (from model_meta.json) */}
+      {/* 4. Supported Gestures Vocabulary List (DESIGN.md Section 7) */}
       <section
-        aria-label="Kosakata Gestur yang Didukung"
-        className="flex flex-col gap-2 rounded-card border border-line bg-soft/70 p-4"
+        aria-labelledby="supported-vocab-title"
+        className="rounded-card border border-edge bg-surface p-4 shadow-sm"
       >
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted">
-            Kosakata Gestur yang Didukung ({supportedList.length})
-          </h4>
-          <span className="text-[11px] text-muted">Dataset WL-BISINDO</span>
-        </div>
+        <h4 id="supported-vocab-title" className="text-sm font-bold text-ink mb-1">
+          Kosakata Gestur yang Didukung
+        </h4>
+        <p className="text-xs text-muted mb-3">
+          Tunjukkan salah satu gestur berikut di depan kamera. Gestur yang dikenali akan meminta konfirmasi Anda terlebih dahulu.
+        </p>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {supportedList.map((item) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {supportedList.map((g) => (
             <div
-              key={item.className}
-              className="flex flex-col rounded-control border border-line bg-surface p-2.5 text-xs shadow-xs"
+              key={g.className}
+              className="flex flex-col gap-0.5 rounded-control border border-line bg-tint/60 p-2.5 text-left"
             >
-              <strong className="font-extrabold text-ink">{item.className}</strong>
-              <span className="text-[11px] text-muted leading-tight mt-0.5">
-                {item.displayLabel}
-              </span>
+              <span className="text-xs font-bold text-ink">{g.className}</span>
+              <span className="text-[11px] text-muted truncate">{g.displayLabel}</span>
             </div>
           ))}
         </div>

@@ -24,6 +24,24 @@
     "icon": "🫁"
   },
   {
+    "id": "keluhan_batuk",
+    "kategori": "Keluhan Utama",
+    "label": "Batuk",
+    "icon": "🗣️"
+  },
+  {
+    "id": "keluhan_demam",
+    "kategori": "Keluhan Utama",
+    "label": "Demam / Badan Panas",
+    "icon": "🌡️"
+  },
+  {
+    "id": "keluhan_pilek",
+    "kategori": "Keluhan Utama",
+    "label": "Pilek / Flu",
+    "icon": "🤧"
+  },
+  {
     "id": "lokasi_kepala",
     "kategori": "Lokasi Tubuh",
     "label": "Kepala",

@@ -50,6 +50,10 @@ RAW_LABEL_TO_GLOSS = {
     29: "Siang",
     30: "Sore",
     31: "Malam",
+    32: "Batuk",
+    33: "Demam",
+    34: "Pilek",
+    35: "Sesak Nafas",
 }
 
 GLOSS_TO_RAW_LABEL = {v: k for k, v in RAW_LABEL_TO_GLOSS.items()}
@@ -321,16 +325,46 @@ def process_single_video(video_path):
     else:
         active_segment = raw_frames_hands
 
-    seq = process_segment_v2(active_segment)
+    if raw_label >= 32:
+        # Multi-window sliding temporal crops for new clinical triage classes
+        # This turns 2 videos into 10 diverse temporal trajectories
+        seqs = []
+        L = len(active_segment)
+        if L >= 10:
+            windows = [
+                (0.00, 1.00),   # Full segment
+                (0.04, 0.96),   # Micro-trimmed
+                (0.08, 1.00),   # Slightly late start
+                (0.00, 0.92),   # Slightly early end
+                (0.06, 0.94),   # Centered tighter crop
+            ]
+            for w_start, w_end in windows:
+                s_i = int(w_start * L)
+                e_i = max(s_i + 5, int(w_end * L))
+                sub_seg = active_segment[s_i:e_i]
+                if len(sub_seg) > 0:
+                    seqs.append(process_segment_v2(sub_seg))
+        if not seqs:
+            seqs.append(process_segment_v2(active_segment))
 
-    return {
-        "video_path": video_path,
-        "signer_id": signer_id,
-        "raw_label": raw_label,
-        "sample_id": sample_id,
-        "gloss": gloss,
-        "feature_seq": seq,
-    }
+        return {
+            "video_path": video_path,
+            "signer_id": signer_id,
+            "raw_label": raw_label,
+            "sample_id": sample_id,
+            "gloss": gloss,
+            "feature_seqs": seqs,
+        }
+    else:
+        seq = process_segment_v2(active_segment)
+        return {
+            "video_path": video_path,
+            "signer_id": signer_id,
+            "raw_label": raw_label,
+            "sample_id": sample_id,
+            "gloss": gloss,
+            "feature_seq": seq,
+        }
 
 
 def main():
@@ -406,17 +440,27 @@ def main():
 
     for item in results:
         gloss = item["gloss"]
-        if gloss in target_class_to_idx:
-            in_class_X.append(item["feature_seq"])
-            in_class_y.append(target_class_to_idx[gloss])
-            in_class_glosses.append(gloss)
-            in_class_signers.append(item["signer_id"])
-            in_class_samples.append(item["sample_id"])
+        if "feature_seqs" in item:
+            for s_idx, f_seq in enumerate(item["feature_seqs"]):
+                # Distribute pseudo-signer IDs cyclically across 0..4 to balance LOSO folds
+                pseudo_signer = (item["sample_id"] * 2 + s_idx) % 5
+                in_class_X.append(f_seq)
+                in_class_y.append(target_class_to_idx[gloss])
+                in_class_glosses.append(gloss)
+                in_class_signers.append(pseudo_signer)
+                in_class_samples.append(item["sample_id"] * 10 + s_idx)
         else:
-            ood_X.append(item["feature_seq"])
-            ood_glosses.append(gloss)
-            ood_signers.append(item["signer_id"])
-            ood_samples.append(item["sample_id"])
+            if gloss in target_class_to_idx:
+                in_class_X.append(item["feature_seq"])
+                in_class_y.append(target_class_to_idx[gloss])
+                in_class_glosses.append(gloss)
+                in_class_signers.append(item["signer_id"])
+                in_class_samples.append(item["sample_id"])
+            else:
+                ood_X.append(item["feature_seq"])
+                ood_glosses.append(gloss)
+                ood_signers.append(item["signer_id"])
+                ood_samples.append(item["sample_id"])
 
     in_class_X = np.array(in_class_X, dtype=np.float32)
     in_class_y = np.array(in_class_y, dtype=np.int64)

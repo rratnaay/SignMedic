@@ -34,13 +34,13 @@ describe('SignMedic ML Parity & Verification (FEATURE_SPEC v2.0.0)', () => {
     expect(maxDiff).toBeLessThanOrEqual(fixture.tolerance.feature_max_diff);
   });
 
-  it('verifies 7-class TF.js forward pass probability parity within 1e-2', () => {
+  it('verifies 11-class TF.js forward pass probability parity within 1e-2', () => {
     const sampleInput = fixture.sequence_inference_test.sample_input_sequence;
     const expectedProbs = fixture.sequence_inference_test.expected_probabilities;
 
     const actualProbs = classifier.predictRawProbabilities(sampleInput);
 
-    expect(actualProbs.length).toBe(7);
+    expect(actualProbs.length).toBe(fixture.num_classes);
 
     let maxProbDiff = 0;
     for (let i = 0; i < actualProbs.length; i++) {
@@ -51,9 +51,9 @@ describe('SignMedic ML Parity & Verification (FEATURE_SPEC v2.0.0)', () => {
     expect(maxProbDiff).toBeLessThanOrEqual(fixture.tolerance.probability_max_diff);
   });
 
-  it('correctly maps all 6 supported classes to valid catalog items', () => {
+  it('correctly maps all 10 supported classes to valid catalog items', () => {
     const supported = getSupportedGesturesList();
-    expect(supported.length).toBe(6);
+    expect(supported.length).toBe(10);
 
     for (const g of supported) {
       const catalogItem = getCatalogItemForGesture(g.className);
@@ -72,6 +72,7 @@ describe('SignMedic ML Parity & Verification (FEATURE_SPEC v2.0.0)', () => {
     expect(resultLow.feedbackMessage).toContain('Gestur belum dikenali dengan yakin');
 
     // 2. High confidence sample sequence from fixture (Air)
+    classifier.resetStability();
     const sampleInput = fixture.sequence_inference_test.sample_input_sequence;
 
     // Segment 1 (unstable yet, N=1)
@@ -87,5 +88,35 @@ describe('SignMedic ML Parity & Verification (FEATURE_SPEC v2.0.0)', () => {
     expect(res2.confidence).toBeGreaterThanOrEqual(0.85);
     expect(res2.stable).toBe(true);
     expect(res2.accepted).toBe(true);
+  });
+
+  it('applies temporal probability smoothing (EMA 0.65/0.35) and resets properly', () => {
+    classifier.resetStability();
+
+    const sampleInput = fixture.sequence_inference_test.sample_input_sequence;
+    const rawProbs = classifier.predictRawProbabilities(sampleInput);
+
+    // Initial evaluation: smoothed equals raw
+    const r1 = classifier.classifySequence(sampleInput);
+    for (let i = 0; i < rawProbs.length; i++) {
+      expect(r1.probabilities[i]).toBeCloseTo(rawProbs[i], 4);
+    }
+
+    // Second evaluation with dummy (zeros input)
+    const dummySeq = Array.from({ length: 30 }, () => new Array(129).fill(0));
+    const rawDummyProbs = classifier.predictRawProbabilities(dummySeq);
+    const r2 = classifier.classifySequence(dummySeq);
+
+    for (let i = 0; i < rawDummyProbs.length; i++) {
+      const expectedSmoothed = 0.65 * rawDummyProbs[i] + 0.35 * rawProbs[i];
+      expect(r2.probabilities[i]).toBeCloseTo(expectedSmoothed, 4);
+    }
+
+    // Reset stability and smoothing
+    classifier.resetStability();
+    const r3 = classifier.classifySequence(sampleInput);
+    for (let i = 0; i < rawProbs.length; i++) {
+      expect(r3.probabilities[i]).toBeCloseTo(rawProbs[i], 4);
+    }
   });
 });

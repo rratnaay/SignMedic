@@ -74,10 +74,14 @@ describe('SignMedic Camera & Gesture UI Flow Tests', () => {
     // Verify getUserMedia was NOT called automatically
     expect(getUserMediaMock).not.toHaveBeenCalled();
 
-    // Verify supported gestures vocabulary is displayed
+    // Verify supported gestures vocabulary is displayed including new triage symptoms
     expect(screen.getByText(/Kosakata Gestur yang Didukung/i)).toBeInTheDocument();
-    expect(screen.getByText('Air')).toBeInTheDocument();
-    expect(screen.getByText('Makan')).toBeInTheDocument();
+    expect(screen.getAllByText('Air')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Makan')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Batuk')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Demam')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Pilek')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Sesak Nafas')[0]).toBeInTheDocument();
 
     // Now click the explicit activation button
     const activateBtn = screen.getByRole('button', { name: /Aktifkan kamera/i });

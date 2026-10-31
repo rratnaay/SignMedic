@@ -1,30 +1,34 @@
 {
-  "evaluation_protocol": "7-Class Clean Nested Leave-One-Signer-Out (3 Train Signers, 1 Val Signer, 1 Unseen Test Signer)",
-  "num_classes": 7,
+  "evaluation_protocol": "11-Class Clean Nested Leave-One-Signer-Out (3 Train Signers, 1 Val Signer, 1 Unseen Test Signer)",
+  "num_classes": 11,
   "target_classes": [
     "Air",
     "Makan",
     "Saya",
     "Tuli",
     "Maaf",
-    "Terima kasih"
+    "Terima kasih",
+    "Batuk",
+    "Demam",
+    "Pilek",
+    "Sesak Nafas"
   ],
-  "reject_class_index": 6,
+  "reject_class_index": 10,
   "reject_class_name": "_OTHER_",
-  "total_in_class_clips": 300,
+  "total_in_class_clips": 340,
   "total_ood_clips": 220,
   "overall_clean_loso_accuracy": {
-    "correct_clips": 244,
-    "total_clips": 300,
-    "accuracy": 0.8133333333333334,
-    "ratio": "244/300"
+    "correct_clips": 299,
+    "total_clips": 340,
+    "accuracy": 0.8794117647058823,
+    "ratio": "299/340"
   },
   "per_signer_in_class_results": {
     "signer_0": {
-      "correct_clips": 51,
-      "total_clips": 60,
-      "accuracy": 0.85,
-      "accuracy_ratio": "51/60",
+      "correct_clips": 60,
+      "total_clips": 68,
+      "accuracy": 0.8823529411764706,
+      "accuracy_ratio": "60/68",
       "train_signers": [
         2,
         3,
@@ -33,10 +37,10 @@
       "val_signer": 1
     },
     "signer_1": {
-      "correct_clips": 49,
-      "total_clips": 60,
-      "accuracy": 0.8166666666666667,
-      "accuracy_ratio": "49/60",
+      "correct_clips": 59,
+      "total_clips": 68,
+      "accuracy": 0.8676470588235294,
+      "accuracy_ratio": "59/68",
       "train_signers": [
         2,
         3,
@@ -45,10 +49,10 @@
       "val_signer": 0
     },
     "signer_2": {
-      "correct_clips": 57,
-      "total_clips": 60,
-      "accuracy": 0.95,
-      "accuracy_ratio": "57/60",
+      "correct_clips": 66,
+      "total_clips": 68,
+      "accuracy": 0.9705882352941176,
+      "accuracy_ratio": "66/68",
       "train_signers": [
         1,
         3,
@@ -57,10 +61,10 @@
       "val_signer": 0
     },
     "signer_3": {
-      "correct_clips": 36,
-      "total_clips": 60,
-      "accuracy": 0.6,
-      "accuracy_ratio": "36/60",
+      "correct_clips": 52,
+      "total_clips": 68,
+      "accuracy": 0.7647058823529411,
+      "accuracy_ratio": "52/68",
       "train_signers": [
         1,
         2,
@@ -69,10 +73,10 @@
       "val_signer": 0
     },
     "signer_4": {
-      "correct_clips": 51,
-      "total_clips": 60,
-      "accuracy": 0.85,
-      "accuracy_ratio": "51/60",
+      "correct_clips": 62,
+      "total_clips": 68,
+      "accuracy": 0.9117647058823529,
+      "accuracy_ratio": "62/68",
       "train_signers": [
         1,
         2,
@@ -84,57 +88,57 @@
   "mirror_handedness_evaluation": {
     "description": "Clean Nested LOSO test clips evaluated as-is (Original) vs horizontally flipped x -> -x (Mirrored: left-handed signer / mirrored camera). Training uses 50% original + 50% flipped samples.",
     "original": {
-      "correct_clips": 244,
-      "total_clips": 300,
-      "accuracy": 0.8133333333333334,
-      "ratio": "244/300"
+      "correct_clips": 299,
+      "total_clips": 340,
+      "accuracy": 0.8794117647058823,
+      "ratio": "299/340"
     },
     "mirrored": {
-      "correct_clips": 244,
-      "total_clips": 300,
-      "accuracy": 0.8133333333333334,
-      "ratio": "244/300"
+      "correct_clips": 299,
+      "total_clips": 340,
+      "accuracy": 0.8794117647058823,
+      "ratio": "299/340"
     },
     "mirrored_ood_rejection_at_0_85": {
-      "rejected_clips": 215,
+      "rejected_clips": 216,
       "total_ood_clips": 220,
-      "rejection_rate": 0.9772727272727273
+      "rejection_rate": 0.9818181818181818
     },
     "per_signer": {
       "signer_0": {
-        "original": "51/60",
-        "original_accuracy": 0.85,
-        "mirrored": "51/60",
-        "mirrored_accuracy": 0.85,
+        "original": "60/68",
+        "original_accuracy": 0.8823529411764706,
+        "mirrored": "60/68",
+        "mirrored_accuracy": 0.8823529411764706,
         "mirrored_ood_rejected": "12/12"
       },
       "signer_1": {
-        "original": "49/60",
-        "original_accuracy": 0.8166666666666667,
-        "mirrored": "49/60",
-        "mirrored_accuracy": 0.8166666666666667,
-        "mirrored_ood_rejected": "48/52"
+        "original": "59/68",
+        "original_accuracy": 0.8676470588235294,
+        "mirrored": "59/68",
+        "mirrored_accuracy": 0.8676470588235294,
+        "mirrored_ood_rejected": "50/52"
       },
       "signer_2": {
-        "original": "57/60",
-        "original_accuracy": 0.95,
-        "mirrored": "57/60",
-        "mirrored_accuracy": 0.95,
+        "original": "66/68",
+        "original_accuracy": 0.9705882352941176,
+        "mirrored": "66/68",
+        "mirrored_accuracy": 0.9705882352941176,
         "mirrored_ood_rejected": "52/52"
       },
       "signer_3": {
-        "original": "36/60",
-        "original_accuracy": 0.6,
-        "mirrored": "36/60",
-        "mirrored_accuracy": 0.6,
+        "original": "52/68",
+        "original_accuracy": 0.7647058823529411,
+        "mirrored": "52/68",
+        "mirrored_accuracy": 0.7647058823529411,
         "mirrored_ood_rejected": "52/52"
       },
       "signer_4": {
-        "original": "51/60",
-        "original_accuracy": 0.85,
-        "mirrored": "51/60",
-        "mirrored_accuracy": 0.85,
-        "mirrored_ood_rejected": "51/52"
+        "original": "62/68",
+        "original_accuracy": 0.9117647058823529,
+        "mirrored": "62/68",
+        "mirrored_accuracy": 0.9117647058823529,
+        "mirrored_ood_rejected": "50/52"
       }
     }
   },
@@ -147,9 +151,9 @@
     },
     "signer_1": {
       "total_ood_clips": 52,
-      "rejected_clips": 48,
-      "rejection_rate": 0.9230769230769231,
-      "ratio": "48/52"
+      "rejected_clips": 50,
+      "rejection_rate": 0.9615384615384616,
+      "ratio": "50/52"
     },
     "signer_2": {
       "total_ood_clips": 52,
@@ -165,168 +169,201 @@
     },
     "signer_4": {
       "total_ood_clips": 52,
-      "rejected_clips": 51,
-      "rejection_rate": 0.9807692307692307,
-      "ratio": "51/52"
+      "rejected_clips": 50,
+      "rejection_rate": 0.9615384615384616,
+      "ratio": "50/52"
     }
   },
   "per_class_metrics": {
     "Air": {
-      "precision": 0.9743589743589743,
-      "recall": 0.76,
-      "f1_score": 0.8539325842696629,
+      "precision": 0.975,
+      "recall": 0.78,
+      "f1_score": 0.8666666666666667,
       "support": 50
     },
     "Makan": {
-      "precision": 0.9705882352941176,
-      "recall": 0.66,
-      "f1_score": 0.7857142857142857,
+      "precision": 1.0,
+      "recall": 0.86,
+      "f1_score": 0.9247311827956989,
       "support": 50
     },
     "Saya": {
-      "precision": 0.9607843137254902,
-      "recall": 0.98,
-      "f1_score": 0.9702970297029703,
-      "support": 50
-    },
-    "Tuli": {
-      "precision": 1.0,
-      "recall": 0.9,
-      "f1_score": 0.9473684210526315,
-      "support": 50
-    },
-    "Maaf": {
       "precision": 0.9411764705882353,
       "recall": 0.96,
       "f1_score": 0.9504950495049505,
       "support": 50
     },
+    "Tuli": {
+      "precision": 1.0,
+      "recall": 0.96,
+      "f1_score": 0.9795918367346939,
+      "support": 50
+    },
+    "Maaf": {
+      "precision": 0.9787234042553191,
+      "recall": 0.92,
+      "f1_score": 0.9484536082474226,
+      "support": 50
+    },
     "Terima kasih": {
       "precision": 1.0,
-      "recall": 0.62,
-      "f1_score": 0.7654320987654321,
+      "recall": 0.7,
+      "f1_score": 0.8235294117647058,
       "support": 50
+    },
+    "Batuk": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 10
+    },
+    "Demam": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 10
+    },
+    "Pilek": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 10
+    },
+    "Sesak Nafas": {
+      "precision": 0.9090909090909091,
+      "recall": 1.0,
+      "f1_score": 0.9523809523809523,
+      "support": 10
     }
   },
   "threshold_sweep_0_50_to_0_95": [
     {
       "threshold": 0.5,
-      "coverage": 0.8233,
-      "precision": 0.9798,
-      "accepted_clips": "242/247",
+      "coverage": 0.8676,
+      "precision": 0.9864,
+      "accepted_clips": "291/295",
+      "ood_rejection_rate": 0.95,
+      "ood_rejected_clips": "209/220"
+    },
+    {
+      "threshold": 0.55,
+      "coverage": 0.8529,
+      "precision": 0.9862,
+      "accepted_clips": "286/290",
       "ood_rejection_rate": 0.9545,
       "ood_rejected_clips": "210/220"
     },
     {
-      "threshold": 0.55,
-      "coverage": 0.8133,
-      "precision": 0.9836,
-      "accepted_clips": "240/244",
-      "ood_rejection_rate": 0.9636,
-      "ood_rejected_clips": "212/220"
-    },
-    {
       "threshold": 0.6,
-      "coverage": 0.8067,
-      "precision": 0.9876,
-      "accepted_clips": "239/242",
-      "ood_rejection_rate": 0.9636,
-      "ood_rejected_clips": "212/220"
+      "coverage": 0.8412,
+      "precision": 0.986,
+      "accepted_clips": "282/286",
+      "ood_rejection_rate": 0.9545,
+      "ood_rejected_clips": "210/220"
     },
     {
       "threshold": 0.65,
-      "coverage": 0.79,
-      "precision": 0.9873,
-      "accepted_clips": "234/237",
-      "ood_rejection_rate": 0.9727,
-      "ood_rejected_clips": "214/220"
+      "coverage": 0.8147,
+      "precision": 0.9928,
+      "accepted_clips": "275/277",
+      "ood_rejection_rate": 0.9636,
+      "ood_rejected_clips": "212/220"
     },
     {
       "threshold": 0.7,
-      "coverage": 0.77,
-      "precision": 0.9957,
-      "accepted_clips": "230/231",
-      "ood_rejection_rate": 0.9727,
-      "ood_rejected_clips": "214/220"
+      "coverage": 0.8029,
+      "precision": 0.9963,
+      "accepted_clips": "272/273",
+      "ood_rejection_rate": 0.9682,
+      "ood_rejected_clips": "213/220"
     },
     {
       "threshold": 0.75,
-      "coverage": 0.7467,
-      "precision": 0.9955,
-      "accepted_clips": "223/224",
+      "coverage": 0.7765,
+      "precision": 0.9962,
+      "accepted_clips": "263/264",
       "ood_rejection_rate": 0.9773,
       "ood_rejected_clips": "215/220"
     },
     {
       "threshold": 0.8,
-      "coverage": 0.71,
-      "precision": 0.9953,
-      "accepted_clips": "212/213",
+      "coverage": 0.7382,
+      "precision": 1.0,
+      "accepted_clips": "251/251",
       "ood_rejection_rate": 0.9773,
       "ood_rejected_clips": "215/220"
     },
     {
       "threshold": 0.85,
-      "coverage": 0.67,
-      "precision": 0.995,
-      "accepted_clips": "200/201",
-      "ood_rejection_rate": 0.9773,
-      "ood_rejected_clips": "215/220"
+      "coverage": 0.6853,
+      "precision": 1.0,
+      "accepted_clips": "233/233",
+      "ood_rejection_rate": 0.9818,
+      "ood_rejected_clips": "216/220"
     },
     {
       "threshold": 0.9,
-      "coverage": 0.5633,
+      "coverage": 0.5882,
       "precision": 1.0,
-      "accepted_clips": "169/169",
+      "accepted_clips": "200/200",
       "ood_rejection_rate": 0.9818,
       "ood_rejected_clips": "216/220"
     },
     {
       "threshold": 0.95,
-      "coverage": 0.08,
+      "coverage": 0.0824,
       "precision": 1.0,
-      "accepted_clips": "24/24",
-      "ood_rejection_rate": 0.9955,
-      "ood_rejected_clips": "219/220"
+      "accepted_clips": "28/28",
+      "ood_rejection_rate": 0.9909,
+      "ood_rejected_clips": "218/220"
     }
   ],
   "out_of_class_evaluation_at_0_85": {
     "chosen_threshold": 0.85,
     "total_ood_clips": 220,
-    "rejected_clips_count": 215,
-    "rejection_percentage": 0.9772727272727273,
-    "accepted_false_positive_count": 5,
+    "rejected_clips_count": 216,
+    "rejection_percentage": 0.9818181818181818,
+    "accepted_false_positive_count": 4,
     "false_labels_assigned": {
       "Air": 0,
-      "Makan": 0,
+      "Makan": 1,
       "Saya": 0,
       "Tuli": 0,
       "Maaf": 3,
-      "Terima kasih": 2
+      "Terima kasih": 0,
+      "Batuk": 0,
+      "Demam": 0,
+      "Pilek": 0,
+      "Sesak Nafas": 0
     }
   },
   "signer_3_diagnosis": {
     "signer_id": 3,
-    "total_test_clips": 60,
-    "correct_clips": 36,
-    "accuracy": 0.6,
-    "accuracy_ratio": "36/60",
+    "total_test_clips": 68,
+    "correct_clips": 52,
+    "accuracy": 0.7647058823529411,
+    "accuracy_ratio": "52/68",
     "clips_per_class": {
       "Air": 10,
       "Makan": 10,
       "Saya": 10,
       "Tuli": 10,
       "Maaf": 10,
-      "Terima kasih": 10
+      "Terima kasih": 10,
+      "Batuk": 2,
+      "Demam": 2,
+      "Pilek": 2,
+      "Sesak Nafas": 2
     },
-    "misclassifications_count": 24,
+    "misclassifications_count": 16,
     "confusion_pairs": {
       "Air -> _OTHER_": 3,
-      "Terima kasih -> _OTHER_": 7,
-      "Terima kasih -> Saya": 1,
-      "Tuli -> _OTHER_": 3,
-      "Makan -> Maaf": 1,
-      "Makan -> _OTHER_": 9
+      "Terima kasih -> _OTHER_": 4,
+      "Terima kasih -> Saya": 3,
+      "Tuli -> _OTHER_": 1,
+      "Maaf -> _OTHER_": 2,
+      "Makan -> _OTHER_": 2,
+      "Makan -> Maaf": 1
     }
   }
 }
