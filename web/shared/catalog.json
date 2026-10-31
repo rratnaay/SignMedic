@@ -1,0 +1,98 @@
+[
+  {
+    "id": "keluhan_sakit_nyeri",
+    "kategori": "Keluhan Utama",
+    "label": "Sakit / Nyeri",
+    "icon": "⚡"
+  },
+  {
+    "id": "keluhan_mual",
+    "kategori": "Keluhan Utama",
+    "label": "Mual / Ingin Muntah",
+    "icon": "🤢"
+  },
+  {
+    "id": "keluhan_pusing",
+    "kategori": "Keluhan Utama",
+    "label": "Pusing / Berputar",
+    "icon": "💫"
+  },
+  {
+    "id": "keluhan_sesak_napas",
+    "kategori": "Keluhan Utama",
+    "label": "Sesak Napas / Sulit Bernapas",
+    "icon": "🫁"
+  },
+  {
+    "id": "lokasi_kepala",
+    "kategori": "Lokasi Tubuh",
+    "label": "Kepala",
+    "icon": "🧠"
+  },
+  {
+    "id": "lokasi_dada",
+    "kategori": "Lokasi Tubuh",
+    "label": "Dada",
+    "icon": "🫀"
+  },
+  {
+    "id": "lokasi_perut",
+    "kategori": "Lokasi Tubuh",
+    "label": "Perut",
+    "icon": "🫐"
+  },
+  {
+    "id": "lokasi_tangan_kaki",
+    "kategori": "Lokasi Tubuh",
+    "label": "Tangan / Kaki",
+    "icon": "🦵"
+  },
+  {
+    "id": "kebutuhan_bantuan_segera",
+    "kategori": "Kebutuhan Triase",
+    "label": "Butuh Bantuan Segera",
+    "icon": "🚨"
+  },
+  {
+    "id": "kebutuhan_duduk_berbaring",
+    "kategori": "Kebutuhan Triase",
+    "label": "Ingin Duduk / Berbaring",
+    "icon": "🪑"
+  },
+  {
+    "id": "kebutuhan_pendamping",
+    "kategori": "Kebutuhan Triase",
+    "label": "Butuh Pendamping",
+    "icon": "👥"
+  },
+  {
+    "id": "info_alergi",
+    "kategori": "Info Penting",
+    "label": "Alergi Obat / Makanan",
+    "icon": "⚠️"
+  },
+  {
+    "id": "info_obat_rutin",
+    "kategori": "Info Penting",
+    "label": "Sedang Minum Obat Rutin",
+    "icon": "💊"
+  },
+  {
+    "id": "konfirmasi_ya",
+    "kategori": "Konfirmasi Cepat",
+    "label": "Ya",
+    "icon": "✅"
+  },
+  {
+    "id": "konfirmasi_tidak",
+    "kategori": "Konfirmasi Cepat",
+    "label": "Tidak",
+    "icon": "❌"
+  },
+  {
+    "id": "konfirmasi_belum_mengerti",
+    "kategori": "Konfirmasi Cepat",
+    "label": "Saya Belum Mengerti",
+    "icon": "❓"
+  }
+]

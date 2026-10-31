@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing and build outputs
+coverage/
+dist/
+build/
+
+# Environment variables & secrets (NEVER commit secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ML Datasets (Kaggle raw videos and recorded samples)
+ml/data/raw/*
+!ml/data/raw/.gitkeep
+ml/data/own/*
+!ml/data/own/.gitkeep
+ml/data/processed/
+*.npz
+!ml/final_model.h5
+!ml/hand_landmarker.task
+
+# Python virtual environment & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

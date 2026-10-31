@@ -1,0 +1,19 @@
+{
+  "classes": [
+    "Air",
+    "Makan",
+    "Saya",
+    "Tuli",
+    "Maaf",
+    "Terima kasih"
+  ],
+  "num_classes": 7,
+  "reject_class_index": 6,
+  "reject_class_name": "_OTHER_",
+  "T": 30,
+  "feature_dim": 129,
+  "normalization_version": "2.0.0",
+  "threshold": 0.85,
+  "stability_n": 2,
+  "source": "WL-BISINDO Banten (Phase 1 Benchmark Model v2.0.0)"
+}

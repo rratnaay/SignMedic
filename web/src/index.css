@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light Theme - Clinical Triage Console (Restrained & High Contrast) */
+  --bg: #EEF3F8;
+  --surface: #FFFFFF;
+  --soft: #F6FAFD;
+  --ink: #142C58;
+  --muted: #51637D;
+  --brand: #142C58;
+  --brand-ink: #FFFFFF;
+  --tint: #DFECF7;
+  --line: #D4E1ED;
+  --edge: #8CA1BC;
+  --blue: #256394;
+  --accent: #1E6B35;
+  --accent-ink: #FFFFFF;
+  --ok-bg: #E1F4E6;
+  --ok-text: #165328;
+  --err: #B3261E;
+  --err-bg: #FEECEA;
+  --err-ink: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A1428;
+    --surface: #101F3D;
+    --soft: #162A4D;
+    --ink: #E8EFF8;
+    --muted: #A3B4CC;
+    --brand: #8CC6EE;
+    --brand-ink: #0A1B38;
+    --tint: #1D3A63;
+    --line: #29426B;
+    --edge: #6F86A8;
+    --blue: #7DB9E6;
+    --accent: #5BBF73;
+    --accent-ink: #07210F;
+    --ok-bg: #143A24;
+    --ok-text: #8BE3A3;
+    --err: #FFB4AB;
+    --err-bg: #3B1512;
+    --err-ink: #3B1512;
+  }
+}
+
+[data-theme="dark"] {
+  --bg: #0A1428;
+  --surface: #101F3D;
+  --soft: #162A4D;
+  --ink: #E8EFF8;
+  --muted: #A3B4CC;
+  --brand: #8CC6EE;
+  --brand-ink: #0A1B38;
+  --tint: #1D3A63;
+  --line: #29426B;
+  --edge: #6F86A8;
+  --blue: #7DB9E6;
+  --accent: #5BBF73;
+  --accent-ink: #07210F;
+  --ok-bg: #143A24;
+  --ok-text: #8BE3A3;
+  --err: #FFB4AB;
+  --err-bg: #3B1512;
+  --err-ink: #3B1512;
+}
+
+/* Professional keyboard focus visibility */
+:focus-visible {
+  outline: 3px solid var(--brand) !important;
+  outline-offset: 2px !important;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

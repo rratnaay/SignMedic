@@ -1,0 +1,11 @@
+# SignMedic ML Offline Requirements (Python 3.10 or 3.11)
+numpy>=1.23.5,<2.0.0
+pandas>=2.0.0
+scikit-learn>=1.2.0
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+matplotlib>=3.7.0
+pyyaml>=6.0
+tensorflow>=2.15.0,<2.16.0
+tensorflowjs>=4.17.0
+tf_keras>=2.15.0

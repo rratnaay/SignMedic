@@ -1,0 +1,41 @@
+# SignMedic ML Configuration File
+# Single source of configuration parameters for training, feature extraction, and export.
+
+data:
+  raw_dir: "data/raw"
+  own_dir: "data/own"
+  processed_dir: "data/processed"
+  reports_dir: "reports"
+  target_classes:
+    - "Air"
+    - "Makan"
+    - "Saya"
+    - "Tuli"
+    - "Maaf"
+    - "Terima kasih"
+
+feature_spec:
+  version: "1.0.0"
+  max_hands: 2
+  landmarks_per_hand: 21
+  coords_per_landmark: 3
+  inter_hand_features: 3
+  feature_dim: 129
+  target_sequence_length: 30 # T frames
+  epsilon: 1.0e-6
+
+inference:
+  max_buffer_frames: 90
+  hand_loss_threshold_frames: 5
+  stability_n_consecutive: 2
+  target_precision: 0.90 # Target acceptance precision >= 0.90
+  default_threshold: 0.90
+
+training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 0.001
+  validation_split_method: "leave_one_signer_out"
+
+export:
+  tfjs_dir: "../web/public/models"
