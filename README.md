@@ -163,6 +163,34 @@ Proyek ini dikembangkan dan dirancang oleh tim **Satu Dua Tiga Aamin**:
 
 ---
 
-## 8. Lisensi
+## 8. AI Use and Third-Party Declaration
 
-Hak Cipta &copy; 2026 Tim SignMedic. Dikembangkan untuk kemanusiaan, inklusivitas layanan kesehatan, dan aksesibilitas komunikasi pasien Tuli di Indonesia.
+### A. Deklarasi Penggunaan AI (AI Use Declaration)
+1. **Model Machine Learning Kustom (Client-Side On-Device AI):**
+   - SignMedic melatih dan mengekspor arsitektur model *Deep Learning* kustom berbobot ringan (Conv1D + Gated Recurrent Unit / GRU) yang dieksekusi secara lokal di peramban menggunakan TensorFlow.js.
+   - Model ini bertugas mengklasifikasikan 11 kelas isyarat klinis BISINDO secara *real-time* langsung di memori perangkat pengguna (*on-device inference* <150ms) dengan spesifikasi fitur v2.0.0 (*Active-Hand First Tracking* dan *Idle Table-Hand Suppression*).
+2. **Bantuan AI dalam Proses Rekayasa (AI-Assisted Development):**
+   - Selama proses pengembangan perangkat lunak, tim memanfaatkan *Large Language Model* / alat bantu pengkodean AI (seperti Google Gemini / Antigravity) untuk membantu:
+     - Pembuatan skenario pengujian unit otomatis komprehensif (37/37 lulus uji di Vitest).
+     - Audit paritas numerik antara pipeline ekstraksi fitur Python dan modul inferensi web TypeScript.
+     - Penulisan draf dokumentasi teknis dan panduan integrasi sistem.
+   - Seluruh arsitektur kode, integrasi WebRTC peer-to-peer, pengujian klinis, dan logika triase telah divalidasi, disetujui, dan diuji langsung oleh tim pengembang.
+
+### B. Deklarasi Aset & Pustaka Pihak Ketiga (Third-Party Assets & Libraries Declaration)
+Proyek ini dibangun dengan menghormati lisensi sumber terbuka dari pihak ketiga:
+1. **Dataset Pihak Ketiga:**
+   - **WL-BISINDO:** [Word-Level Indonesian Sign Language Dataset](https://www.kaggle.com/datasets/glennleonali/wl-bisindo) oleh Glenn Leonali di Kaggle (lisensi terbuka untuk riset dan pendidikan).
+   - Diperkaya secara independen oleh tim pengembang dengan merekam dan menambahkan dataset gestur klinis IGD (*Batuk*, *Demam*, *Pilek*, dan *Sesak Nafas* dua tangan) untuk mengatasi kelangkaan data bahasa isyarat medis di Indonesia.
+2. **Pustaka & Kerangka Kerja Terbuka:**
+   - **Computer Vision & Tracking:** Google MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) &mdash; *Lisensi Apache 2.0*.
+   - **Machine Learning Runtime:** Google TensorFlow.js (`@tensorflow/tfjs`) &mdash; *Lisensi Apache 2.0*.
+   - **Peer-to-Peer Networking:** PeerJS (`peerjs`) &mdash; *Lisensi MIT*.
+   - **Frontend & Styling:** React 18, TypeScript, Tailwind CSS, Lucide React (`lucide-react`) &mdash; *Lisensi MIT*.
+   - **Pengujian & Build Tools:** Vitest, Vite &mdash; *Lisensi MIT*.
+   - **Speech Recognition:** Standar W3C Web Speech API bawaan peramban (*browser native API*).
+
+---
+
+## 9. Lisensi
+
+Hak Cipta &copy; 2026 Tim SignMedic (Satu Dua Tiga Aamin). Dikembangkan untuk kemanusiaan, inklusivitas layanan kesehatan, dan aksesibilitas komunikasi pasien tunarungu di Indonesia.
